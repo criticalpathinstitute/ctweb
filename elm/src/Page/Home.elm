@@ -11,12 +11,13 @@ import Bootstrap.Grid.Col as Col
 import Bootstrap.Grid.Row as Row
 import Bootstrap.Table exposing (table, tbody, td, th, thead, tr)
 import Bootstrap.Utilities.Spacing as Spacing
+import Cart
 import Common exposing (commify, viewHttpErrorMessage)
 import Config exposing (apiServer)
 import Debug
 import File.Download as Download
 import Html exposing (Html, a, b, br, div, h1, img, text)
-import Html.Attributes exposing (class, for, href, src, target, value)
+import Html.Attributes exposing (class, for, href, src, style, target, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
@@ -24,13 +25,15 @@ import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Regex
 import RemoteData exposing (RemoteData, WebData)
 import Route
+import Session exposing (Session)
 import Set
 import Task
 import Url.Builder
 
 
 type alias Model =
-    { summary : WebData Summary
+    { session : Session
+    , summary : WebData Summary
     , conditionFilter : Maybe String
     , conditions : WebData (List Condition)
     , searchResults : WebData (List Study)
@@ -42,6 +45,7 @@ type alias Model =
     , querySelectedConditions : List Condition
     , querySelectedPhases : List Phase
     , querySelectedSponsors : List Sponsor
+    , errorMessage : Maybe String
     }
 
 
@@ -85,6 +89,7 @@ type Msg
     | AddSponsor String
     | AddAllStudies
     | AddStudy Study
+    | CartMsg Cart.Msg
     | ConditionsResponse (WebData (List Condition))
     | DoSearch
     | DownloadStudies
@@ -101,25 +106,33 @@ type Msg
     | SponsorsResponse (WebData (List Sponsor))
 
 
-initialModel =
-    { summary = RemoteData.NotAsked
-    , conditionFilter = Nothing
-    , conditions = RemoteData.NotAsked
-    , searchResults = RemoteData.NotAsked
-    , phases = RemoteData.NotAsked
-    , sponsors = RemoteData.NotAsked
-    , sponsorFilter = Nothing
-    , selectedStudies = []
-    , queryText = Nothing
-    , querySelectedConditions = []
-    , querySelectedPhases = []
-    , querySelectedSponsors = []
-    }
+maxCartSize =
+    250
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( initialModel, Cmd.batch [ getSummary, getConditions, getSponsors, getPhases ] )
+init : Session -> ( Model, Cmd Msg )
+init session =
+    let
+        initialModel =
+            { session = session
+            , summary = RemoteData.NotAsked
+            , conditionFilter = Nothing
+            , conditions = RemoteData.NotAsked
+            , searchResults = RemoteData.NotAsked
+            , phases = RemoteData.NotAsked
+            , sponsors = RemoteData.NotAsked
+            , sponsorFilter = Nothing
+            , selectedStudies = []
+            , queryText = Nothing
+            , querySelectedConditions = []
+            , querySelectedPhases = []
+            , querySelectedSponsors = []
+            , errorMessage = Nothing
+            }
+    in
+    ( initialModel
+    , Cmd.batch [ getSummary, getConditions, getSponsors, getPhases ]
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -269,6 +282,41 @@ update msg model =
             ( { model | selectedStudies = model.selectedStudies ++ newStudies }
             , Cmd.none
             )
+
+        CartMsg subMsg ->
+            let
+                cart =
+                    Session.getCart model.session
+
+                updateCart =
+                    case subMsg of
+                        Cart.AddToCart idList ->
+                            Cart.size cart + List.length idList <= maxCartSize
+
+                        _ ->
+                            True
+            in
+            if updateCart then
+                let
+                    newCart =
+                        Cart.update subMsg cart
+
+                    newSession =
+                        Session.setCart model.session newCart
+                in
+                ( { model | session = newSession }
+                , Cmd.batch
+                    [ --Cmd.map CartMsg subCmd
+                      Cart.store newCart
+                    ]
+                )
+
+            else
+                let
+                    err =
+                        "Too many files to add to the cart (>" ++ String.fromInt maxCartSize ++ "). Try further constraining the search parameters."
+                in
+                ( { model | errorMessage = Just err }, Cmd.none )
 
         ConditionsResponse data ->
             ( { model | conditions = data }
@@ -647,6 +695,12 @@ view model =
 
                 RemoteData.Success studies ->
                     let
+                        cart =
+                            Session.getCart model.session
+
+                        _ =
+                            Debug.log "cart" cart
+
                         mkRow study =
                             tr []
                                 [ td []
@@ -655,6 +709,14 @@ view model =
                                         , Button.onClick (AddStudy study)
                                         ]
                                         [ text "Add" ]
+                                    ]
+                                , td []
+                                    [ Cart.addToCartButton
+                                        cart
+                                        Nothing
+                                        Nothing
+                                        [ study.studyId ]
+                                        |> Html.map CartMsg
                                     ]
                                 , td []
                                     [ b [] [ text study.title ]

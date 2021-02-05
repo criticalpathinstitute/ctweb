@@ -3,17 +3,24 @@ module Main exposing (Model, Msg(..), init, main, subscriptions, update, view)
 import Bootstrap.Navbar as Navbar
 import Browser
 import Browser.Navigation as Nav
+import Cart as CartData
 import Config
+import Credentials exposing (Credentials)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline
+import Json.Encode as Encode exposing (Value)
 import Page.Home
 import Page.Study
 import PageView
 import Route exposing (Route)
+import Session exposing (Session)
+import State exposing (State)
 import Url
 
 
-main : Program () Model Msg
+main : Program Value Model Msg
 main =
     Browser.application
         { init = init
@@ -30,6 +37,13 @@ type alias Model =
     , url : Url.Url
     , curPage : Page
     , navbarState : Navbar.State
+    , session : Session
+    }
+
+
+type alias Flags =
+    { cart : Maybe CartData.Cart
+    , cred : Maybe Credentials
     }
 
 
@@ -46,20 +60,58 @@ type Msg
     | StudyMsg Page.Study.Msg
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
-init _ url key =
+flagsDecoder : Decoder Flags
+flagsDecoder =
+    Decode.succeed Flags
+        |> Json.Decode.Pipeline.required "cart" (Decode.nullable CartData.decoder)
+        |> Json.Decode.Pipeline.required "cred" (Decode.nullable Credentials.decoder)
+
+
+init : Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url navKey =
     let
+        session =
+            let
+                _ =
+                    Debug.log "flags" flags
+
+                _ =
+                    Debug.log "decode" (Decode.decodeValue flagsDecoder flags)
+            in
+            case Decode.decodeValue flagsDecoder flags of
+                Ok f ->
+                    let
+                        _ =
+                            Debug.log "f" f
+
+                        cart =
+                            f.cart |> Maybe.withDefault CartData.empty
+                    in
+                    case f.cred of
+                        Just cred ->
+                            Session.LoggedIn navKey State.default cart cred
+
+                        Nothing ->
+                            Session.Guest navKey State.default cart
+
+                Err error ->
+                    Session.Guest navKey State.default CartData.empty
+
+        _ =
+            Debug.log "session" session
+
         ( navbarState, navbarCmd ) =
             Navbar.initialState NavbarMsg
 
         ( homeModel, homeMsg ) =
-            Page.Home.init
+            Page.Home.init session
 
         initialModel =
-            { key = key
+            { key = navKey
             , url = url
             , curPage = HomePage homeModel
             , navbarState = navbarState
+            , session = session
             }
 
         currentRoute =
@@ -158,6 +210,6 @@ changeRouteTo maybeRoute model =
         _ ->
             let
                 ( subModel, subMsg ) =
-                    Page.Home.init
+                    Page.Home.init model.session
             in
             ( { model | curPage = HomePage subModel }, Cmd.map HomeMsg subMsg )
