@@ -1,3 +1,5 @@
 elm-stuff
 elm.js
 src/Config.elm
+node_modules
+package-lock.json

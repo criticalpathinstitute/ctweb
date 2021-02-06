@@ -1,0 +1,23 @@
+{
+  "name": "clinicaltrials",
+  "version": "0.1.0",
+  "description": "C-Path Clinical Trials",
+  "main": "elm.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/criticalpathinstitute/ctweb.git"
+  },
+  "author": "Ken Youens-Clark",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/criticalpathinstitute/ctweb/issues"
+  },
+  "homepage": "https://github.com/criticalpathinstitute/ctweb#readme",
+  "devDependencies": {
+    "@fortawesome/fontawesome-free": "^5.15.2",
+    "sass": "^1.23.1"
+  }
+}

@@ -9,7 +9,8 @@ import Url.Parser.Query as Query
 
 
 type Route
-    = Home
+    = Cart
+    | Home
     | Study String
 
 
@@ -17,6 +18,7 @@ parser : Parser (Route -> a) a
 parser =
     oneOf
         [ Parser.map Home Parser.top
+        , Parser.map Cart (s "cart")
         , Parser.map Study (s "study" </> string)
         ]
 
@@ -53,6 +55,9 @@ routeToString page =
     let
         pieces =
             case page of
+                Cart ->
+                    [ "cart" ]
+
                 Home ->
                     []
 

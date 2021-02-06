@@ -60,6 +60,12 @@ class Phase(BaseModel):
     num_studies: int
 
 
+class StudyCart(BaseModel):
+    study_id: int
+    nct_id: str
+    title: str
+
+
 class StudySearchResult(BaseModel):
     study_id: int
     nct_id: str
@@ -165,6 +171,37 @@ def get_cur():
 
     return dbh.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
+# --------------------------------------------------
+@app.get('/view_cart', response_model=List[StudyCart])
+def view_cart(study_ids: str) -> List[StudyCart]:
+    """ View studies in cart """
+
+    sql = """
+        select s.study_id, s.nct_id, s.official_title
+        from   study s
+        where  s.study_id in ({})
+    """.format(study_ids)
+    # print(sql)
+
+    res = []
+    try:
+        cur = get_cur()
+        cur.execute(sql)
+        res = cur.fetchall()
+        cur.close()
+    except:
+        dbh.rollback()
+
+    if not res:
+        return []
+
+    def f(rec):
+        return StudyCart(
+            study_id=rec['study_id'],
+            nct_id=rec['nct_id'],
+            title=rec['official_title'])
+
+    return list(map(f, res))
 
 # --------------------------------------------------
 @app.get('/download', response_model=List[StudySearchResult])
@@ -172,7 +209,7 @@ def download(study_ids: str) -> List[StudySearchResult]:
     """ Download """
 
     sql = """
-        select s.study_id, s.nct_id, s.brief_title, s.detailed_description
+        select s.study_id, s.nct_id, s.official_title, s.detailed_description
         from   study s
         where  s.study_id in ({})
     """.format(study_ids)
@@ -194,10 +231,10 @@ def download(study_ids: str) -> List[StudySearchResult]:
         return StudySearchResult(
             study_id=rec['study_id'],
             nct_id=rec['nct_id'],
-            title=rec['brief_title'],
+            title=rec['official_title'],
             detailed_description=rec['detailed_description'])
 
-    flds = ['study_id', 'nct_id', 'brief_title', 'detailed_description']
+    flds = ['study_id', 'nct_id', 'official_title', 'detailed_description']
     stream = io.StringIO()
     writer = csv.DictWriter(stream, fieldnames=flds, delimiter=',')
     writer.writeheader()
@@ -219,7 +256,7 @@ def search(text: Optional[str] = '',
            phases: Optional[str] = '') -> List[StudySearchResult]:
     """ Search """
 
-    flds = ['study_id', 'nct_id', 'brief_title', 'detailed_description']
+    flds = ['study_id', 'nct_id', 'official_title', 'detailed_description']
     where = []
 
     if text:
@@ -267,7 +304,7 @@ def search(text: Optional[str] = '',
     where = '\nand '.join(chain.from_iterable(map(lambda x: x['where'],
                                                   where)))
     sql = """
-        select s.study_id, s.nct_id, s.brief_title, s.detailed_description
+        select s.study_id, s.nct_id, s.official_title, s.detailed_description
         from   {}
         where  s.nct_id != ''
         and {}
@@ -291,7 +328,7 @@ def search(text: Optional[str] = '',
         return StudySearchResult(
             study_id=rec['study_id'],
             nct_id=rec['nct_id'],
-            title=rec['brief_title'],
+            title=rec['official_title'],
             detailed_description=rec['detailed_description'])
 
     return list(map(f, res))

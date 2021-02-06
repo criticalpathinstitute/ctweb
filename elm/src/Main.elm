@@ -11,6 +11,7 @@ import Html.Attributes exposing (..)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline
 import Json.Encode as Encode exposing (Value)
+import Page.Cart
 import Page.Home
 import Page.Study
 import PageView
@@ -50,14 +51,16 @@ type alias Flags =
 type Page
     = HomePage Page.Home.Model
     | StudyPage String Page.Study.Model
+    | CartPage Page.Cart.Model
 
 
 type Msg
-    = LinkClicked Browser.UrlRequest
-    | NavbarMsg Navbar.State
-    | UrlChanged Url.Url
+    = CartMsg Page.Cart.Msg
     | HomeMsg Page.Home.Msg
+    | LinkClicked Browser.UrlRequest
+    | NavbarMsg Navbar.State
     | StudyMsg Page.Study.Msg
+    | UrlChanged Url.Url
 
 
 flagsDecoder : Decoder Flags
@@ -171,17 +174,25 @@ view model =
             Navbar.config NavbarMsg
     in
     case model.curPage of
+        CartPage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map CartMsg (Page.Cart.view subModel))
+
+        HomePage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map HomeMsg (Page.Home.view subModel))
+
         StudyPage nctId subModel ->
-            PageView.view navConfig
+            PageView.view model.session
+                navConfig
                 model.navbarState
                 (Html.map StudyMsg
                     (Page.Study.view subModel)
                 )
-
-        HomePage subModel ->
-            PageView.view navConfig
-                model.navbarState
-                (Html.map HomeMsg (Page.Home.view subModel))
 
 
 subscriptions : Model -> Sub Msg
@@ -205,6 +216,15 @@ changeRouteTo maybeRoute model =
             in
             ( { model | curPage = StudyPage nctId subModel }
             , Cmd.map StudyMsg subMsg
+            )
+
+        Just Route.Cart ->
+            let
+                ( subModel, subMsg ) =
+                    Page.Cart.init model.session
+            in
+            ( { model | curPage = CartPage subModel }
+            , Cmd.map CartMsg subMsg
             )
 
         _ ->
