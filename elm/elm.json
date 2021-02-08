@@ -20,6 +20,7 @@
             "elm/url": "1.0.0",
             "elm-community/json-extra": "4.3.0",
             "krisajenkins/remotedata": "6.0.1",
+            "lattyware/elm-fontawesome": "5.0.0",
             "lukewestby/elm-http-builder": "8.0.0",
             "rundis/elm-bootstrap": "5.2.0"
         },

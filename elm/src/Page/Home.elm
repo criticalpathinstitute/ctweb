@@ -9,13 +9,12 @@ import Bootstrap.Form.Select as Select
 import Bootstrap.Grid as Grid
 import Bootstrap.Grid.Col as Col
 import Bootstrap.Grid.Row as Row
-import Bootstrap.Table exposing (table, tbody, td, th, thead, tr)
+import Bootstrap.Table exposing (simpleThead, table, tbody, td, th, thead, tr)
 import Bootstrap.Utilities.Spacing as Spacing
 import Cart
 import Common exposing (commify, viewHttpErrorMessage)
-import Config exposing (apiServer)
+import Config exposing (apiServer, maxCartSize)
 import Debug
-import File.Download as Download
 import Html exposing (Html, a, b, br, div, h1, img, text)
 import Html.Attributes exposing (class, for, href, src, style, target, value)
 import Html.Events exposing (onClick, onInput, onSubmit)
@@ -87,12 +86,9 @@ type Msg
     = AddCondition String
     | AddPhase String
     | AddSponsor String
-    | AddAllStudies
-    | AddStudy Study
     | CartMsg Cart.Msg
     | ConditionsResponse (WebData (List Condition))
     | DoSearch
-    | DownloadStudies
     | RemoveCondition Condition
     | RemoveSponsor Sponsor
     | RemovePhase Phase
@@ -104,10 +100,6 @@ type Msg
     | SetQueryText String
     | SearchResponse (WebData (List Study))
     | SponsorsResponse (WebData (List Sponsor))
-
-
-maxCartSize =
-    250
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -240,49 +232,6 @@ update msg model =
             in
             ( newModel, doSearch newModel )
 
-        AddAllStudies ->
-            let
-                currentlySelected =
-                    Set.fromList <|
-                        List.map (\s -> s.studyId) model.selectedStudies
-
-                newStudies =
-                    case model.searchResults of
-                        RemoteData.Success data ->
-                            List.filter
-                                (\s ->
-                                    not
-                                        (Set.member s.studyId currentlySelected)
-                                )
-                                data
-
-                        _ ->
-                            []
-            in
-            ( { model
-                | selectedStudies = model.selectedStudies ++ newStudies
-              }
-            , Cmd.none
-            )
-
-        AddStudy study ->
-            let
-                currentIds =
-                    Set.fromList <|
-                        List.map (\s -> s.studyId) model.selectedStudies
-
-                newStudies =
-                    case Set.member study.studyId currentIds of
-                        False ->
-                            [ study ]
-
-                        _ ->
-                            []
-            in
-            ( { model | selectedStudies = model.selectedStudies ++ newStudies }
-            , Cmd.none
-            )
-
         CartMsg subMsg ->
             let
                 cart =
@@ -314,7 +263,9 @@ update msg model =
             else
                 let
                     err =
-                        "Too many files to add to the cart (>" ++ String.fromInt maxCartSize ++ "). Try further constraining the search parameters."
+                        "Too many files to add to the cart (>"
+                            ++ String.fromInt maxCartSize
+                            ++ "). Try constraining the search parameters."
                 in
                 ( { model | errorMessage = Just err }, Cmd.none )
 
@@ -325,18 +276,6 @@ update msg model =
 
         DoSearch ->
             ( { model | searchResults = RemoteData.Loading }, doSearch model )
-
-        DownloadStudies ->
-            let
-                studyIds =
-                    String.join "," <|
-                        List.map (\s -> String.fromInt s.studyId)
-                            model.selectedStudies
-
-                url =
-                    apiServer ++ "/download?study_ids=" ++ studyIds
-            in
-            ( model, Download.url url )
 
         PhasesResponse data ->
             ( { model | phases = data }
@@ -609,10 +548,6 @@ view model =
                 ]
                 [ text (condition.condition ++ " ⦻") ]
 
-        --viewCondition condition =
-        --    a
-        --        [ onClick (RemoveCondition condition) ]
-        --        [ text (condition.condition ++ " ⦻") ]
         viewSponsor sponsor =
             Button.button
                 [ Button.outlinePrimary
@@ -698,19 +633,15 @@ view model =
                         cart =
                             Session.getCart model.session
 
-                        _ =
-                            Debug.log "cart" cart
+                        numStudies =
+                            List.length studies
+
+                        title =
+                            "Search Results (" ++ commify numStudies ++ ")"
 
                         mkRow study =
                             tr []
                                 [ td []
-                                    [ Button.button
-                                        [ Button.outlineSecondary
-                                        , Button.onClick (AddStudy study)
-                                        ]
-                                        [ text "Add" ]
-                                    ]
-                                , td []
                                     [ Cart.addToCartButton
                                         cart
                                         Nothing
@@ -720,27 +651,16 @@ view model =
                                     ]
                                 , td []
                                     [ b [] [ text study.title ]
-                                    , br [] []
-                                    , a
+                                    ]
+                                , td []
+                                    [ a
                                         [ Route.href
                                             (Route.Study study.nctId)
                                         , target "_blank"
                                         ]
                                         [ text study.nctId ]
-                                    , br [] []
-                                    , text
-                                        (truncate
-                                            study.detailedDescription
-                                            80
-                                        )
                                     ]
                                 ]
-
-                        numStudies =
-                            List.length studies
-
-                        title =
-                            "Search Results (" ++ commify numStudies ++ ")"
 
                         resultsDiv =
                             let
@@ -750,18 +670,21 @@ view model =
                                             []
 
                                         _ ->
-                                            [ Button.button
-                                                [ Button.outlinePrimary
-                                                , Button.onClick AddAllStudies
-                                                ]
-                                                [ text "Add All" ]
-                                            , table
+                                            [ table
                                                 { options =
                                                     [ Bootstrap.Table.striped ]
-                                                , thead = thead [] []
+                                                , thead =
+                                                    simpleThead
+                                                        [ th [] []
+                                                        , th [] [ text "Title" ]
+                                                        , th [] [ text "NCT ID" ]
+                                                        ]
                                                 , tbody =
                                                     tbody []
-                                                        (List.map mkRow studies)
+                                                        (List.map
+                                                            mkRow
+                                                            studies
+                                                        )
                                                 }
                                             ]
                             in
@@ -777,16 +700,6 @@ view model =
             [ Grid.col
                 [ Col.xs, Col.md8 ]
                 [ text summary ]
-            , Grid.col
-                [ Col.xs6, Col.md4 ]
-                [ img
-                    [ src "/assets/images/cart.png"
-                    , onClick DownloadStudies
-                    ]
-                    []
-                , Badge.badgeSecondary []
-                    [ text (String.fromInt numSelectedStudies) ]
-                ]
             ]
         , Grid.row []
             [ Grid.col [ Col.mdAuto ] [ searchForm ]

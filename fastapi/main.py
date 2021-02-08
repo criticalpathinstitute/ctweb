@@ -65,12 +65,16 @@ class StudyCart(BaseModel):
     nct_id: str
     title: str
 
+class StudyDownload(BaseModel):
+    study_id: int
+    nct_id: str
+    title: str
+    detailed_description: str
 
 class StudySearchResult(BaseModel):
     study_id: int
     nct_id: str
     title: str
-    detailed_description: str
 
 
 class StudyDoc(BaseModel):
@@ -204,8 +208,8 @@ def view_cart(study_ids: str) -> List[StudyCart]:
     return list(map(f, res))
 
 # --------------------------------------------------
-@app.get('/download', response_model=List[StudySearchResult])
-def download(study_ids: str) -> List[StudySearchResult]:
+@app.get('/download', response_model=List[StudyDownload])
+def download(study_ids: str) -> List[StudyDownload]:
     """ Download """
 
     sql = """
@@ -256,7 +260,7 @@ def search(text: Optional[str] = '',
            phases: Optional[str] = '') -> List[StudySearchResult]:
     """ Search """
 
-    flds = ['study_id', 'nct_id', 'official_title', 'detailed_description']
+    flds = ['study_id', 'nct_id', 'official_title']
     where = []
 
     if text:
@@ -328,11 +332,9 @@ def search(text: Optional[str] = '',
         return StudySearchResult(
             study_id=rec['study_id'],
             nct_id=rec['nct_id'],
-            title=rec['official_title'],
-            detailed_description=rec['detailed_description'])
+            title=rec['official_title'])
 
     return list(map(f, res))
-    # return list(map(lambda r: StudySearchResult(**dict(r)), res))
 
 
 # --------------------------------------------------

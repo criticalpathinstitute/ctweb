@@ -74,19 +74,9 @@ init : Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
         session =
-            let
-                _ =
-                    Debug.log "flags" flags
-
-                _ =
-                    Debug.log "decode" (Decode.decodeValue flagsDecoder flags)
-            in
             case Decode.decodeValue flagsDecoder flags of
                 Ok f ->
                     let
-                        _ =
-                            Debug.log "f" f
-
                         cart =
                             f.cart |> Maybe.withDefault CartData.empty
                     in
@@ -99,9 +89,6 @@ init flags url navKey =
 
                 Err error ->
                     Session.Guest navKey State.default CartData.empty
-
-        _ =
-            Debug.log "session" session
 
         ( navbarState, navbarCmd ) =
             Navbar.initialState NavbarMsg
@@ -144,6 +131,15 @@ update msg model =
 
         ( NavbarMsg state, _ ) ->
             ( { model | navbarState = state }, Cmd.none )
+
+        ( CartMsg subMsg, CartPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.Cart.update subMsg subModel
+            in
+            ( { model | curPage = CartPage newSubModel }
+            , Cmd.map CartMsg newCmd
+            )
 
         ( HomeMsg subMsg, HomePage subModel ) ->
             let
@@ -212,7 +208,7 @@ changeRouteTo maybeRoute model =
         Just (Route.Study nctId) ->
             let
                 ( subModel, subMsg ) =
-                    Page.Study.init nctId
+                    Page.Study.init model.session nctId
             in
             ( { model | curPage = StudyPage nctId subModel }
             , Cmd.map StudyMsg subMsg

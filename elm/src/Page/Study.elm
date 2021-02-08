@@ -6,8 +6,9 @@ import Bootstrap.Grid.Col as Col
 import Bootstrap.Tab as Tab
 import Bootstrap.Table exposing (rowPrimary, simpleThead, table, tbody, td, th, tr)
 import Bootstrap.Utilities.Spacing as Spacing
+import Cart exposing (Cart)
 import Common exposing (commify, viewHttpErrorMessage)
-import Config exposing (apiServer, serverAddress)
+import Config exposing (apiServer, maxCartSize, serverAddress)
 import Html exposing (Html, a, div, h1, h2, li, text, ul)
 import Html.Attributes exposing (href, style, target)
 import Http
@@ -15,12 +16,15 @@ import Json.Decode exposing (Decoder, field, float, int, nullable, string)
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import RemoteData exposing (RemoteData, WebData)
 import Route
+import Session exposing (Session)
 import Url.Builder
 
 
 type alias Model =
-    { study : WebData Study
+    { session : Session
+    , study : WebData Study
     , tabState : Tab.State
+    , errorMessage : Maybe String
     }
 
 
@@ -61,7 +65,8 @@ type alias StudyDoc =
 
 
 type alias Study =
-    { nctId : String
+    { studyId : Int
+    , nctId : String
     , officialTitle : String
     , briefTitle : String
     , detailedDescription : String
@@ -105,13 +110,16 @@ type alias Study =
 
 type Msg
     = TabMsg Tab.State
+    | CartMsg Cart.Msg
     | StudyResponse (WebData Study)
 
 
-init : String -> ( Model, Cmd Msg )
-init nctId =
-    ( { study = RemoteData.NotAsked
+init : Session -> String -> ( Model, Cmd Msg )
+init session nctId =
+    ( { session = session
+      , study = RemoteData.NotAsked
       , tabState = Tab.initialState
+      , errorMessage = Nothing
       }
     , Cmd.batch [ getStudy nctId ]
     )
@@ -120,6 +128,43 @@ init nctId =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        CartMsg subMsg ->
+            let
+                cart =
+                    Session.getCart model.session
+
+                updateCart =
+                    case subMsg of
+                        Cart.AddToCart idList ->
+                            Cart.size cart + List.length idList <= maxCartSize
+
+                        _ ->
+                            True
+            in
+            if updateCart then
+                let
+                    newCart =
+                        Cart.update subMsg cart
+
+                    newSession =
+                        Session.setCart model.session newCart
+                in
+                ( { model | session = newSession }
+                , Cmd.batch
+                    [ --Cmd.map CartMsg subCmd
+                      Cart.store newCart
+                    ]
+                )
+
+            else
+                let
+                    err =
+                        "Too many files to add to the cart (>"
+                            ++ String.fromInt maxCartSize
+                            ++ "). Try constraining the search parameters."
+                in
+                ( { model | errorMessage = Just err }, Cmd.none )
+
         TabMsg state ->
             ( { model | tabState = state }
             , Cmd.none
@@ -146,8 +191,21 @@ view model =
                     div [] [ text (viewHttpErrorMessage httpError) ]
 
                 RemoteData.Success study ->
+                    let
+                        cart =
+                            Session.getCart model.session
+
+                        cartButton =
+                            Cart.addToCartButton
+                                cart
+                                Nothing
+                                Nothing
+                                [ study.studyId ]
+                                |> Html.map CartMsg
+                    in
                     div []
                         [ h1 [] [ text <| "Study: " ++ study.nctId ]
+                        , cartButton
                         , studyTab model.tabState study
                         ]
     in
@@ -453,6 +511,7 @@ getStudy nctId =
 decoderStudy : Decoder Study
 decoderStudy =
     Json.Decode.succeed Study
+        |> Json.Decode.Pipeline.required "study_id" int
         |> Json.Decode.Pipeline.required "nct_id" string
         |> Json.Decode.Pipeline.required "official_title" string
         |> Json.Decode.Pipeline.required "brief_title" string

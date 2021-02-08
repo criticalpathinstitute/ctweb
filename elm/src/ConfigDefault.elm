@@ -1,4 +1,9 @@
-module Config exposing (apiServer, serverAddress)
+module Config exposing (apiServer, maxCartSize, serverAddress)
+
+
+maxCartSize : Int
+maxCartSize =
+    250
 
 
 serverAddress : String

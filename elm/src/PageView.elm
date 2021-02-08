@@ -51,7 +51,8 @@ view session navConfig navbarState content =
                         []
                     ]
                 |> Navbar.items
-                    [ Navbar.itemLink [ Route.href Route.Cart ] [ text "Cart" ]
+                    [ Navbar.itemLink [ Route.href Route.Cart ]
+                        [ text "View Cart" ]
                     , Navbar.itemLink [] [ cartButton ]
                     ]
                 |> Navbar.view navbarState

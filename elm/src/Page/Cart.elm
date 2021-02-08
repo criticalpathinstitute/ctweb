@@ -1,22 +1,32 @@
 module Page.Cart exposing (ExternalMsg(..), Model, Msg(..), init, toSession, update, view)
 
--- import RemoteFile exposing (File)
--- import Page
-
+import Bootstrap.Button as Button
+import Bootstrap.Table exposing (table, tbody, td, th, thead, tr)
 import Cart exposing (Cart)
-import Html exposing (..)
+import Config exposing (apiServer)
+import File.Download as Download
+import Html exposing (Html, a, b, br, div, h1, text)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Http
 import Icon
-import RemoteData exposing (RemoteData(..))
+import Json.Decode exposing (Decoder, field, float, int, nullable, string)
+import Json.Decode.Pipeline
+import RemoteData exposing (RemoteData(..), WebData)
+import Route
 import Session exposing (Session)
 
 
 type alias Model =
     { session : Session
+    , studies : RemoteData Http.Error (List Study)
+    }
 
-    -- , studies : RemoteData Http.Error (List Study)
+
+type alias Study =
+    { studyId : Int
+    , nctId : String
+    , title : String
     }
 
 
@@ -24,17 +34,14 @@ init :
     Session
     -> ( Model, Cmd Msg ) --Maybe Int -> ( Model, Cmd Msg )
 init session =
-    --id =
     let
         idList =
             Cart.toList (Session.getCart session)
     in
     ( { session = session
-
-      -- , files = Loading
+      , studies = Loading
       }
-    , Cmd.none
-      --, Cmd.batch [ RemoteFile.fetchSome idList |> Http.send GetFilesCompleted ]
+    , Cmd.batch [ getStudies idList ]
     )
 
 
@@ -45,11 +52,9 @@ toSession model =
 
 type Msg
     = CartMsg Cart.Msg
+    | DownloadStudies
     | EmptyCart
-
-
-
--- | GetFilesCompleted (Result Http.Error (List File))
+    | StudiesResponse (WebData (List Study))
 
 
 type ExternalMsg
@@ -60,28 +65,31 @@ type ExternalMsg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        -- GetFilesCompleted result ->
-        --     ( { model | files = RemoteData.fromResult result }, Cmd.none )
         CartMsg subMsg ->
             let
                 newCart =
                     Cart.update subMsg (Session.getCart model.session)
 
-                --newFiles =
-                --    model.files
-                --        |> RemoteData.toMaybe
-                --        |> Maybe.withDefault []
-                --        |> List.filter (\f -> Cart.contains newCart f.id)
                 newSession =
                     Session.setCart model.session newCart
             in
-            -- ( { model | session = newSession, files = Success newFiles }
             ( { model | session = newSession }
-            , Cmd.batch
-                [ --Cmd.map CartMsg subCmd
-                  Cart.store newCart
-                ]
+            , Cmd.batch [ Cart.store newCart ]
             )
+
+        DownloadStudies ->
+            let
+                idList =
+                    Cart.toList (Session.getCart model.session)
+
+                studyIds =
+                    String.join "," <|
+                        List.map String.fromInt idList
+
+                url =
+                    apiServer ++ "/download?study_ids=" ++ studyIds
+            in
+            ( model, Download.url url )
 
         EmptyCart ->
             let
@@ -93,16 +101,89 @@ update msg model =
             , Cart.store Cart.empty
             )
 
+        StudiesResponse data ->
+            ( { model | studies = data }
+            , Cmd.none
+            )
 
-view : Model -> Html msg
+
+view : Model -> Html Msg
 view model =
     let
         cart =
             Session.getCart model.session
+
+        studies =
+            case model.studies of
+                RemoteData.Success data ->
+                    let
+                        mkRow study =
+                            tr []
+                                [ td []
+                                    [ Cart.addToCartButton
+                                        cart
+                                        Nothing
+                                        Nothing
+                                        [ study.studyId ]
+                                        |> Html.map CartMsg
+                                    ]
+                                , td []
+                                    [ b [] [ text study.title ]
+                                    , br [] []
+                                    , a
+                                        [ Route.href
+                                            (Route.Study study.nctId)
+                                        , target "_blank"
+                                        ]
+                                        [ text study.nctId ]
+                                    ]
+                                ]
+                    in
+                    table
+                        { options =
+                            [ Bootstrap.Table.striped ]
+                        , thead = thead [] []
+                        , tbody =
+                            tbody []
+                                (List.map mkRow data)
+                        }
+
+                _ ->
+                    text "?"
     in
     div []
-        [ text <| "Cart has " ++ String.fromInt (Cart.size cart) ++ " items"
+        [ h1 []
+            [ text <| "View Cart (" ++ String.fromInt (Cart.size cart) ++ ")" ]
+        , Button.button
+            [ Button.outlinePrimary
+            , Button.onClick DownloadStudies
+            ]
+            [ text "Download" ]
+        , studies
         ]
+
+
+getStudies : List Int -> Cmd Msg
+getStudies studyIds =
+    let
+        ids =
+            String.join "," (List.map String.fromInt studyIds)
+    in
+    Http.get
+        { url = apiServer ++ "/view_cart?study_ids=" ++ ids
+        , expect =
+            Http.expectJson
+                (RemoteData.fromResult >> StudiesResponse)
+                (Json.Decode.list decoderStudy)
+        }
+
+
+decoderStudy : Decoder Study
+decoderStudy =
+    Json.Decode.succeed Study
+        |> Json.Decode.Pipeline.required "study_id" int
+        |> Json.Decode.Pipeline.required "nct_id" string
+        |> Json.Decode.Pipeline.required "title" string
 
 
 
