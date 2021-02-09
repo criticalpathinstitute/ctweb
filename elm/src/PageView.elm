@@ -19,21 +19,17 @@ view session navConfig navbarState content =
     let
         cartButton =
             let
-                numItemsInCart =
+                cartSize =
                     Cart.size (Session.getCart session)
 
                 label =
-                    if numItemsInCart == 0 then
+                    if cartSize == 0 then
                         ""
 
                     else
-                        String.fromInt numItemsInCart
+                        String.fromInt cartSize
             in
-            a
-                [ class "nav-link text-nowrap"
-                , style "min-width" "4em"
-                , Route.href Route.Cart
-                ]
+            div []
                 [ Icon.shoppingCartLg
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
@@ -51,9 +47,7 @@ view session navConfig navbarState content =
                         []
                     ]
                 |> Navbar.items
-                    [ Navbar.itemLink [ Route.href Route.Cart ]
-                        [ text "View Cart" ]
-                    , Navbar.itemLink [] [ cartButton ]
+                    [ Navbar.itemLink [ Route.href Route.Cart ] [ cartButton ]
                     ]
                 |> Navbar.view navbarState
     in

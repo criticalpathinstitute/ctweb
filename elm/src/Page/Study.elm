@@ -196,11 +196,7 @@ view model =
                             Session.getCart model.session
 
                         cartButton =
-                            Cart.addToCartButton
-                                cart
-                                Nothing
-                                Nothing
-                                [ study.studyId ]
+                            Cart.addToCartButton cart study.studyId
                                 |> Html.map CartMsg
                     in
                     div []

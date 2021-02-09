@@ -254,10 +254,7 @@ update msg model =
                         Session.setCart model.session newCart
                 in
                 ( { model | session = newSession }
-                , Cmd.batch
-                    [ --Cmd.map CartMsg subCmd
-                      Cart.store newCart
-                    ]
+                , Cart.store newCart
                 )
 
             else
@@ -642,16 +639,10 @@ view model =
                         mkRow study =
                             tr []
                                 [ td []
-                                    [ Cart.addToCartButton
-                                        cart
-                                        Nothing
-                                        Nothing
-                                        [ study.studyId ]
+                                    [ Cart.addToCartButton cart study.studyId
                                         |> Html.map CartMsg
                                     ]
-                                , td []
-                                    [ b [] [ text study.title ]
-                                    ]
+                                , td [] [ text study.title ]
                                 , td []
                                     [ a
                                         [ Route.href
@@ -662,33 +653,54 @@ view model =
                                     ]
                                 ]
 
+                        errorMessage =
+                            div []
+                                [ text <|
+                                    Maybe.withDefault "" model.errorMessage
+                                ]
+
+                        resultsTable =
+                            table
+                                { options =
+                                    [ Bootstrap.Table.striped ]
+                                , thead =
+                                    simpleThead
+                                        [ th [] []
+                                        , th [] [ text "Title" ]
+                                        , th [] [ text "NCT ID" ]
+                                        ]
+                                , tbody =
+                                    tbody []
+                                        (List.map
+                                            mkRow
+                                            studies
+                                        )
+                                }
+
                         resultsDiv =
                             let
+                                idList =
+                                    List.map (\s -> s.studyId) studies
+
+                                cartButton =
+                                    div []
+                                        [ Cart.addAllToCartButton cart idList
+                                            |> Html.map CartMsg
+                                        ]
+
                                 body =
                                     case numStudies of
                                         0 ->
-                                            []
+                                            div [] []
 
                                         _ ->
-                                            [ table
-                                                { options =
-                                                    [ Bootstrap.Table.striped ]
-                                                , thead =
-                                                    simpleThead
-                                                        [ th [] []
-                                                        , th [] [ text "Title" ]
-                                                        , th [] [ text "NCT ID" ]
-                                                        ]
-                                                , tbody =
-                                                    tbody []
-                                                        (List.map
-                                                            mkRow
-                                                            studies
-                                                        )
-                                                }
-                                            ]
+                                            div [] [ resultsTable ]
                             in
-                            [ h1 [] [ text title ] ] ++ body
+                            [ h1 [] [ text title ]
+                            , errorMessage
+                            , cartButton
+                            , body
+                            ]
                     in
                     div [] resultsDiv
 
@@ -850,9 +862,6 @@ doSearch model =
 
         searchUrl =
             apiServer ++ "/search/" ++ queryParams
-
-        _ =
-            Debug.log "url" searchUrl
     in
     Http.get
         { url = searchUrl

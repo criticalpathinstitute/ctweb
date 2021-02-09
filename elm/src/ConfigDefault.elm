@@ -3,7 +3,7 @@ module Config exposing (apiServer, maxCartSize, serverAddress)
 
 maxCartSize : Int
 maxCartSize =
-    250
+    1000
 
 
 serverAddress : String

@@ -1,6 +1,8 @@
 port module Cart exposing (..)
 
-import Html exposing (Html, a, button, input, table, tbody, td, text, th, thead, tr)
+import Bootstrap.Button as Button
+import Bootstrap.Utilities.Spacing as Spacing
+import Html exposing (Html, a, input, table, tbody, td, text, th, thead, tr)
 import Html.Attributes exposing (checked, class, href, target, type_)
 import Html.Events exposing (onClick)
 import Icon
@@ -37,8 +39,11 @@ type CartType
 decoder : Decoder Cart
 decoder =
     Decode.succeed Model
-        |> required "contents" (Decode.list Decode.int |> Decode.map Set.fromList)
-        |> optional "selected" (Decode.list Decode.int |> Decode.map Set.fromList) Set.empty
+        |> required "contents"
+            (Decode.list Decode.int |> Decode.map Set.fromList)
+        |> optional "selected"
+            (Decode.list Decode.int |> Decode.map Set.fromList)
+            Set.empty
         |> Decode.map Cart
 
 
@@ -185,89 +190,35 @@ view :
     -> CartType
     -> Html Msg
 view cart files cartType =
+    text ""
+
+
+addToCartButton : Cart -> Int -> Html Msg
+addToCartButton cart id =
     let
-        row file =
-            let
-                basename path =
-                    String.split "/" path |> List.reverse |> List.head |> Maybe.withDefault ""
-            in
-            tr []
-                [ if cartType == Selectable then
-                    td []
-                        [ input [ type_ "checkbox", checked (selected cart file.id), onClick (ToggleSelectInCart file.id) ] [] ]
-
-                  else
-                    text ""
-
-                --td [] []
-                , td [] [ a [ href ("http://google.com" ++ file.url), target "_blank" ] [ text <| basename file.url ] ]
-                , td [] [ text <| file.source ++ "/" ++ file.layout ]
-                , td [] [ a [ href ("http://google.com" ++ file.runAccn), target "_blank" ] [ text file.runAccn ] ]
-                , if cartType == Editable then
-                    td []
-                        [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart [ file.id ]) ] [ text "Remove" ] ]
-
-                  else
-                    td [] []
-                ]
-    in
-    table [ class "table" ]
-        [ thead []
-            [ if cartType == Selectable then
-                th [] []
-
-              else
-                text ""
-            , th [] [ text "File ", Icon.externalLink ]
-            , th [] [ text "Source/Layout" ]
-            , th [] [ text "Run ", Icon.externalLink ]
-            , th [] [ text "Experiment" ]
-            , th [] [ text "Sample" ]
-            , th [] [ text "Project" ]
-            , th [] []
-            ]
-        , tbody []
-            (List.map row files)
-
-        --(samplesInCart cart samples |> List.map row)
-        ]
-
-
-addToCartButton : Cart -> Maybe ( String, String ) -> Maybe String -> List Int -> Html Msg
-addToCartButton cart optionalLabels optionalClasses idList =
-    let
-        ( addLbl, removeLbl ) =
-            optionalLabels |> Maybe.withDefault ( "Add", "Remove" )
-
-        classes =
-            optionalClasses |> Maybe.withDefault "btn-xs btn-outline-secondary"
-
         btn label clickMsg =
-            button [ class <| "btn text-nowrap " ++ classes, onClick clickMsg ]
+            Button.button
+                [ Button.outlinePrimary
+                , Button.onClick clickMsg
+                , Button.attrs [ Spacing.mx1 ]
+                ]
                 [ text label ]
     in
-    if List.any (\id -> contains cart id) idList then
-        btn removeLbl (RemoveFromCart idList)
+    if contains cart id then
+        btn "Remove" (RemoveFromCart [ id ])
 
     else
-        btn addLbl (AddToCart idList)
+        btn "Add" (AddToCart [ id ])
 
 
-addAllToCartButton : Cart -> Maybe ( String, String ) -> List Int -> Html Msg
-addAllToCartButton cart optionalLabels idList =
-    let
-        ( addLbl, removeLbl ) =
-            optionalLabels |> Maybe.withDefault ( "Add All", "Remove All" )
-
-        btn label clickMsg =
-            button [ class "btn btn-xs btn-outline-secondary align-middle text-nowrap", onClick clickMsg ]
-                [ Icon.shoppingCart
-                , text " "
-                , text label
-                ]
-    in
-    if List.any (\id -> contains cart id) idList then
-        btn removeLbl (RemoveFromCart idList)
-
-    else
-        btn addLbl (AddToCart idList)
+addAllToCartButton : Cart -> List Int -> Html Msg
+addAllToCartButton cart ids =
+    Button.button
+        [ Button.outlinePrimary
+        , Button.onClick (AddToCart ids)
+        , Button.attrs [ Spacing.mx1 ]
+        ]
+        [ Icon.shoppingCart
+        , text " "
+        , text "Add All"
+        ]

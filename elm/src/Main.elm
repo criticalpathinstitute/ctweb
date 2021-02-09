@@ -137,7 +137,10 @@ update msg model =
                 ( newSubModel, newCmd ) =
                     Page.Cart.update subMsg subModel
             in
-            ( { model | curPage = CartPage newSubModel }
+            ( { model
+                | curPage = CartPage newSubModel
+                , session = newSubModel.session
+              }
             , Cmd.map CartMsg newCmd
             )
 
@@ -146,7 +149,10 @@ update msg model =
                 ( newSubModel, newCmd ) =
                     Page.Home.update subMsg subModel
             in
-            ( { model | curPage = HomePage newSubModel }
+            ( { model
+                | curPage = HomePage newSubModel
+                , session = newSubModel.session
+              }
             , Cmd.map HomeMsg newCmd
             )
 
@@ -155,7 +161,10 @@ update msg model =
                 ( newSubModel, newCmd ) =
                     Page.Study.update subMsg subModel
             in
-            ( { model | curPage = StudyPage nctId newSubModel }
+            ( { model
+                | curPage = StudyPage nctId newSubModel
+                , session = newSubModel.session
+              }
             , Cmd.map StudyMsg newCmd
             )
 

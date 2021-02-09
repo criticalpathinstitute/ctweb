@@ -2,6 +2,7 @@ module Page.Cart exposing (ExternalMsg(..), Model, Msg(..), init, toSession, upd
 
 import Bootstrap.Button as Button
 import Bootstrap.Table exposing (table, tbody, td, th, thead, tr)
+import Bootstrap.Utilities.Spacing as Spacing
 import Cart exposing (Cart)
 import Config exposing (apiServer)
 import File.Download as Download
@@ -120,11 +121,7 @@ view model =
                         mkRow study =
                             tr []
                                 [ td []
-                                    [ Cart.addToCartButton
-                                        cart
-                                        Nothing
-                                        Nothing
-                                        [ study.studyId ]
+                                    [ Cart.addToCartButton cart study.studyId
                                         |> Html.map CartMsg
                                     ]
                                 , td []
@@ -150,15 +147,28 @@ view model =
 
                 _ ->
                     text "?"
+
+        cartSize =
+            Cart.size cart
     in
     div []
-        [ h1 []
-            [ text <| "View Cart (" ++ String.fromInt (Cart.size cart) ++ ")" ]
-        , Button.button
-            [ Button.outlinePrimary
-            , Button.onClick DownloadStudies
+        [ div []
+            [ h1 [] [ text <| "View Cart (" ++ String.fromInt cartSize ++ ")" ]
+            , Button.button
+                [ Button.outlinePrimary
+                , Button.onClick DownloadStudies
+                , Button.disabled (cartSize == 0)
+                , Button.attrs [ Spacing.mx1 ]
+                ]
+                [ text "Download" ]
+            , Button.button
+                [ Button.outlinePrimary
+                , Button.onClick EmptyCart
+                , Button.disabled (cartSize == 0)
+                , Button.attrs [ Spacing.mx1 ]
+                ]
+                [ text "Empty Cart" ]
             ]
-            [ text "Download" ]
         , studies
         ]
 

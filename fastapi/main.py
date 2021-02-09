@@ -332,7 +332,7 @@ def search(text: Optional[str] = '',
         return StudySearchResult(
             study_id=rec['study_id'],
             nct_id=rec['nct_id'],
-            title=rec['official_title'])
+            title=rec['official_title'] or 'NA')
 
     return list(map(f, res))
 
