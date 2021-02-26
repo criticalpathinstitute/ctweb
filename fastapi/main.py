@@ -44,19 +44,15 @@ app.add_middleware(
 )
 
 
-class Condition(BaseModel):
-    condition: str
-
-
 class ConditionDropDown(BaseModel):
     condition_id: int
-    condition: str
+    condition_name: str
     num_studies: int
 
 
 class Phase(BaseModel):
     phase_id: int
-    phase: str
+    phase_name: str
     num_studies: int
 
 
@@ -64,6 +60,7 @@ class StudyCart(BaseModel):
     study_id: int
     nct_id: str
     title: str
+
 
 class StudyDownload(BaseModel):
     study_id: int
@@ -100,12 +97,12 @@ class StudySponsor(BaseModel):
 
 class StudyCondition(BaseModel):
     condition_id: int
-    condition: str
+    condition_name: str
 
 
 class StudyIntervention(BaseModel):
     intervention_id: int
-    intervention: str
+    intervention_name: str
 
 
 class StudyDetail(BaseModel):
@@ -155,7 +152,7 @@ class StudyDetail(BaseModel):
 
 class Sponsor(BaseModel):
     sponsor_id: int
-    sponsor: str
+    sponsor_name: str
     num_studies: int
 
 
@@ -174,6 +171,7 @@ def get_cur():
     """ Get db cursor """
 
     return dbh.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
 
 # --------------------------------------------------
 @app.get('/view_cart', response_model=List[StudyCart])
@@ -209,7 +207,7 @@ def view_cart(study_ids: str) -> List[StudyCart]:
 
 # --------------------------------------------------
 @app.get('/download', response_model=List[StudyDownload])
-def download(study_ids: str) -> List[StudyDownload]:
+def download(study_ids: str) -> StreamingResponse:
     """ Download """
 
     sql = """
@@ -228,9 +226,6 @@ def download(study_ids: str) -> List[StudyDownload]:
     except:
         dbh.rollback()
 
-    if not res:
-        return []
-
     def f(rec):
         return StudySearchResult(
             study_id=rec['study_id'],
@@ -238,12 +233,13 @@ def download(study_ids: str) -> List[StudyDownload]:
             title=rec['official_title'],
             detailed_description=rec['detailed_description'])
 
-    flds = ['study_id', 'nct_id', 'official_title', 'detailed_description']
     stream = io.StringIO()
-    writer = csv.DictWriter(stream, fieldnames=flds, delimiter=',')
-    writer.writeheader()
-    for row in res:
-        writer.writerow({f: row[f] for f in flds})
+    if res:
+        flds = ['study_id', 'nct_id', 'official_title', 'detailed_description']
+        writer = csv.DictWriter(stream, fieldnames=flds, delimiter=',')
+        writer.writeheader()
+        for row in res:
+            writer.writerow({f: row[f] for f in flds})
 
     response = StreamingResponse(iter([stream.getvalue()]),
                                  media_type="text/csv")
@@ -325,9 +321,6 @@ def search(text: Optional[str] = '',
     except:
         dbh.rollback()
 
-    if not res:
-        return []
-
     def f(rec):
         return StudySearchResult(
             study_id=rec['study_id'],
@@ -377,14 +370,14 @@ def study(nct_id: str) -> StudyDetail:
 
         conditions = [
             StudyCondition(condition_id=c.condition_id,
-                           condition=c.condition.condition)
+                           condition_name=c.condition.condition_name)
             for c in ct.StudyToCondition.select().where(
                 ct.StudyToCondition.study_id == study.study_id)
         ]
 
         interventions = [
             StudyIntervention(intervention_id=c.intervention_id,
-                              intervention=c.intervention.intervention)
+                              intervention_name=c.intervention.intervention_name)
             for c in ct.StudyToIntervention.select().where(
                 ct.StudyToIntervention.study_id == study.study_id)
         ]
@@ -464,7 +457,8 @@ def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
 
     clause = f"and c.condition like '%{name}%'" if name else ''
     sql = f"""
-        select   c.condition_id, c.condition, count(s.study_id) as num_studies
+        select   c.condition_id, c.condition_name,
+                 count(s.study_id) as num_studies
         from     condition c, study_to_condition s2c, study s
         where    c.condition_id=s2c.condition_id
         and      s2c.study_id=s.study_id
@@ -488,7 +482,7 @@ def sponsors() -> List[Sponsor]:
     """ Sponsors/Num Studies """
 
     sql = """
-        select   p.sponsor_id, p.sponsor, count(s.study_id) as num_studies
+        select   p.sponsor_id, p.sponsor_name, count(s.study_id) as num_studies
         from     sponsor p, study_to_sponsor s2p, study s
         where    p.sponsor_id=s2p.sponsor_id
         and      s2p.study_id=s.study_id
@@ -511,7 +505,7 @@ def phases() -> List[Phase]:
     """ Phases """
 
     sql = """
-        select   p.phase_id, p.phase, count(s.study_id) as num_studies
+        select   p.phase_id, p.phase_name, count(s.study_id) as num_studies
         from     phase p, study s
         where    p.phase_id=s.phase_id
         group by 1, 2

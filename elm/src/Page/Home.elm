@@ -50,14 +50,14 @@ type alias Model =
 
 type alias Condition =
     { conditionId : Int
-    , condition : String
+    , conditionName : String
     , numStudies : Int
     }
 
 
 type alias Phase =
     { phaseId : Int
-    , phase : String
+    , phaseName : String
     , numStudies : Int
     }
 
@@ -425,7 +425,7 @@ view model =
                     Select.item
                         [ value <| String.fromInt phase.phaseId ]
                         [ text <|
-                            phase.phase
+                            phase.phaseName
                                 ++ " ("
                                 ++ String.fromInt phase.numStudies
                                 ++ ")"
@@ -522,7 +522,7 @@ view model =
                             String.fromInt condition.conditionId
                         ]
                         [ text <|
-                            condition.condition
+                            condition.conditionName
                                 ++ " ("
                                 ++ String.fromInt condition.numStudies
                                 ++ ")"
@@ -543,7 +543,7 @@ view model =
                 [ Button.outlinePrimary
                 , Button.onClick (RemoveCondition condition)
                 ]
-                [ text (condition.condition ++ " ⦻") ]
+                [ text (condition.conditionName ++ " ⦻") ]
 
         viewSponsor sponsor =
             Button.button
@@ -557,7 +557,7 @@ view model =
                 [ Button.outlinePrimary
                 , Button.onClick (RemovePhase phase)
                 ]
-                [ text (phase.phase ++ " ⦻") ]
+                [ text (phase.phaseName ++ " ⦻") ]
 
         viewSelectedConditions =
             List.map viewCondition model.querySelectedConditions
@@ -741,7 +741,7 @@ filteredConditions conditions conditionFilter =
             List.filter
                 (\c ->
                     Regex.contains re
-                        (String.toLower c.condition)
+                        (String.toLower c.conditionName)
                 )
                 conditions
 
@@ -886,7 +886,7 @@ decoderCondition : Decoder Condition
 decoderCondition =
     Json.Decode.succeed Condition
         |> Json.Decode.Pipeline.required "condition_id" int
-        |> Json.Decode.Pipeline.required "condition" string
+        |> Json.Decode.Pipeline.required "condition_name" string
         |> Json.Decode.Pipeline.required "num_studies" int
 
 
@@ -894,7 +894,7 @@ decoderPhase : Decoder Phase
 decoderPhase =
     Json.Decode.succeed Phase
         |> Json.Decode.Pipeline.required "phase_id" int
-        |> Json.Decode.Pipeline.required "phase" string
+        |> Json.Decode.Pipeline.required "phase_name" string
         |> Json.Decode.Pipeline.required "num_studies" int
 
 
@@ -917,7 +917,7 @@ decoderSponsor : Decoder Sponsor
 decoderSponsor =
     Json.Decode.succeed Sponsor
         |> Json.Decode.Pipeline.required "sponsor_id" int
-        |> Json.Decode.Pipeline.required "sponsor" string
+        |> Json.Decode.Pipeline.required "sponsor_name" string
         |> Json.Decode.Pipeline.required "num_studies" int
 
 
