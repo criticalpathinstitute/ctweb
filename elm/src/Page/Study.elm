@@ -86,20 +86,21 @@ type alias Study =
     , biospecDescription : String
     , startDate : String
     , completionDate : String
-    , verificationDate : String
-    , studyFirstSubmitted : String
-    , studyFirstSubmittedQC : String
-    , studyFirstPosted : String
-    , resultsFirstSubmitted : String
-    , resultsFirstSubmittedQC : String
-    , resultsFirstPosted : String
-    , dispositionFirstSubmitted : String
-    , dispositionFirstSubmittedQC : String
-    , dispositionFirstPosted : String
-    , lastUpdateSubmitted : String
-    , lastUpdateSubmittedQC : String
-    , lastUpdatePosted : String
-    , primaryCompletionDate : String
+
+    --, verificationDate : String
+    --, studyFirstSubmitted : String
+    --, studyFirstSubmittedQC : String
+    --, studyFirstPosted : String
+    --, resultsFirstSubmitted : String
+    --, resultsFirstSubmittedQC : String
+    --, resultsFirstPosted : String
+    --, dispositionFirstSubmitted : String
+    --, dispositionFirstSubmittedQC : String
+    --, dispositionFirstPosted : String
+    --, lastUpdateSubmitted : String
+    --, lastUpdateSubmittedQC : String
+    --, lastUpdatePosted : String
+    --, primaryCompletionDate : String
     , sponsors : List Sponsor
     , conditions : List Condition
     , interventions : List Intervention
@@ -528,20 +529,20 @@ decoderStudy =
         |> Json.Decode.Pipeline.required "biospec_description" string
         |> Json.Decode.Pipeline.required "start_date" string
         |> Json.Decode.Pipeline.required "completion_date" string
-        |> Json.Decode.Pipeline.required "verification_date" string
-        |> Json.Decode.Pipeline.required "study_first_submitted" string
-        |> Json.Decode.Pipeline.required "study_first_submitted_qc" string
-        |> Json.Decode.Pipeline.required "study_first_posted" string
-        |> Json.Decode.Pipeline.required "results_first_submitted" string
-        |> Json.Decode.Pipeline.required "results_first_submitted_qc" string
-        |> Json.Decode.Pipeline.required "results_first_posted" string
-        |> Json.Decode.Pipeline.required "disposition_first_submitted" string
-        |> Json.Decode.Pipeline.required "disposition_first_submitted_qc" string
-        |> Json.Decode.Pipeline.required "disposition_first_posted" string
-        |> Json.Decode.Pipeline.required "last_update_submitted" string
-        |> Json.Decode.Pipeline.required "last_update_submitted_qc" string
-        |> Json.Decode.Pipeline.required "last_update_posted" string
-        |> Json.Decode.Pipeline.required "primary_completion_date" string
+        --|> Json.Decode.Pipeline.required "verification_date" string
+        --|> Json.Decode.Pipeline.required "study_first_submitted" string
+        --|> Json.Decode.Pipeline.required "study_first_submitted_qc" string
+        --|> Json.Decode.Pipeline.required "study_first_posted" string
+        --|> Json.Decode.Pipeline.required "results_first_submitted" string
+        --|> Json.Decode.Pipeline.required "results_first_submitted_qc" string
+        --|> Json.Decode.Pipeline.required "results_first_posted" string
+        --|> Json.Decode.Pipeline.required "disposition_first_submitted" string
+        --|> Json.Decode.Pipeline.required "disposition_first_submitted_qc" string
+        --|> Json.Decode.Pipeline.required "disposition_first_posted" string
+        --|> Json.Decode.Pipeline.required "last_update_submitted" string
+        --|> Json.Decode.Pipeline.required "last_update_submitted_qc" string
+        --|> Json.Decode.Pipeline.required "last_update_posted" string
+        --|> Json.Decode.Pipeline.required "primary_completion_date" string
         |> Json.Decode.Pipeline.optional "sponsors"
             (Json.Decode.list decoderSponsor)
             []
@@ -570,14 +571,14 @@ decoderCondition : Decoder Condition
 decoderCondition =
     Json.Decode.succeed Condition
         |> Json.Decode.Pipeline.required "condition_id" int
-        |> Json.Decode.Pipeline.required "condition" string
+        |> Json.Decode.Pipeline.required "condition_name" string
 
 
 decoderIntervention : Decoder Intervention
 decoderIntervention =
     Json.Decode.succeed Intervention
         |> Json.Decode.Pipeline.required "intervention_id" int
-        |> Json.Decode.Pipeline.required "intervention" string
+        |> Json.Decode.Pipeline.required "intervention_name" string
 
 
 decoderStudyDoc : Decoder StudyDoc

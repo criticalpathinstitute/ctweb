@@ -107,9 +107,15 @@ class StudyIntervention(BaseModel):
 
 class StudyDetail(BaseModel):
     study_id: int
-    nct_id: str
+    study_type_id: int
+    study_type: str
     phase_id: int
     phase: str
+    overall_status_id: int
+    overall_status: str
+    last_known_status_id: int
+    last_known_status: str
+    nct_id: str
     official_title: str
     brief_title: str
     detailed_description: str
@@ -118,31 +124,29 @@ class StudyDetail(BaseModel):
     source: str
     rank: str
     brief_summary: str
-    overall_status: str
-    last_known_status: str
-    why_stopped: str
-    study_type: str
-    has_expanded_access: str
-    target_duration: str
-    biospec_retention: str
-    biospec_description: str
-    keywords: str
-    start_date: str
-    completion_date: str
-    verification_date: str
-    study_first_submitted: str
-    study_first_submitted_qc: str
-    study_first_posted: str
-    results_first_submitted: str
-    results_first_submitted_qc: str
-    results_first_posted: str
-    disposition_first_submitted: str
-    disposition_first_submitted_qc: str
-    disposition_first_posted: str
-    last_update_submitted: str
-    last_update_submitted_qc: str
-    last_update_posted: str
-    primary_completion_date: str
+    why_stopped: Optional[str]
+    study_type: Optional[str]
+    has_expanded_access: Optional[str]
+    target_duration: Optional[str]
+    biospec_retention: Optional[str]
+    biospec_description: Optional[str]
+    keywords: Optional[str]
+    start_date: Optional[str]
+    completion_date: Optional[str]
+    # verification_date: str
+    # study_first_submitted: str
+    # study_first_submitted_qc: str
+    # study_first_posted: str
+    # results_first_submitted: str
+    # results_first_submitted_qc: str
+    # results_first_posted: str
+    # disposition_first_submitted: str
+    # disposition_first_submitted_qc: str
+    # disposition_first_posted: str
+    # last_update_submitted: str
+    # last_update_submitted_qc: str
+    # last_update_posted: str
+    # primary_completion_date: str
     sponsors: List[StudySponsor]
     conditions: List[StudyCondition]
     interventions: List[StudyIntervention]
@@ -263,7 +267,7 @@ def search(text: Optional[str] = '',
         where.append({
             'table':
             '',
-            'where': ['s.text @@ to_tsquery({})'.format(make_bool(text))]
+            'where': ['s.all_text @@ to_tsquery({})'.format(make_bool(text))]
         })
 
     if phases:
@@ -363,7 +367,7 @@ def study(nct_id: str) -> StudyDetail:
 
         sponsors = [
             StudySponsor(sponsor_id=s.sponsor_id,
-                         sponsor_name=s.sponsor.sponsor)
+                         sponsor_name=s.sponsor.sponsor_name)
             for s in ct.StudyToSponsor.select().where(
                 ct.StudyToSponsor.study_id == study.study_id)
         ]
@@ -404,6 +408,14 @@ def study(nct_id: str) -> StudyDetail:
 
         return StudyDetail(
             study_id=study.study_id,
+            study_type_id=study.study_type_id,
+            study_type=study.study_type.study_type_name,
+            phase_id=study.phase_id,
+            phase=study.phase.phase_name,
+            overall_status_id=study.overall_status_id,
+            overall_status=study.overall_status.status_name,
+            last_known_status_id=study.last_known_status_id,
+            last_known_status=study.last_known_status.status_name,
             nct_id=study.nct_id,
             official_title=study.official_title or '',
             brief_title=study.brief_title or '',
@@ -413,36 +425,31 @@ def study(nct_id: str) -> StudyDetail:
             source=study.source or '',
             rank=study.rank or '',
             brief_summary=study.brief_summary or '',
-            overall_status=study.overall_status or '',
-            last_known_status=study.last_known_status or '',
             why_stopped=study.why_stopped or '',
-            phase_id=study.phase_id,
-            phase=study.phase.phase,
-            study_type=study.study_type,
-            has_expanded_access=study.has_expanded_access,
-            target_duration=study.target_duration,
-            biospec_retention=study.biospec_retention,
-            biospec_description=study.biospec_description,
+            has_expanded_access=study.has_expanded_access or '',
+            target_duration=study.target_duration or '',
+            biospec_retention=study.biospec_retention or '',
+            biospec_description=study.biospec_description or '',
             keywords=study.keywords or '',
             start_date=str(study.start_date) or '',
             completion_date=str(study.completion_date) or '',
-            verification_date=str(study.verification_date) or '',
-            study_first_submitted=str(study.study_first_submitted) or '',
-            study_first_submitted_qc=str(study.study_first_submitted_qc) or '',
-            study_first_posted=str(study.study_first_posted) or '',
-            results_first_submitted=str(study.results_first_submitted) or '',
-            results_first_submitted_qc=str(study.results_first_submitted_qc)
-            or '',
-            results_first_posted=str(study.results_first_posted) or '',
-            disposition_first_submitted=str(study.disposition_first_submitted)
-            or '',
-            disposition_first_submitted_qc=str(
-                study.disposition_first_submitted_qc) or '',
-            disposition_first_posted=str(study.disposition_first_posted) or '',
-            last_update_submitted=str(study.last_update_submitted) or '',
-            last_update_submitted_qc=str(study.last_update_submitted_qc) or '',
-            last_update_posted=str(study.last_update_posted) or '',
-            primary_completion_date=str(study.primary_completion_date) or '',
+            # verification_date=str(study.verification_date) or '',
+            # study_first_submitted=str(study.study_first_submitted) or '',
+            # study_first_submitted_qc=str(study.study_first_submitted_qc) or '',
+            # study_first_posted=str(study.study_first_posted) or '',
+            # results_first_submitted=str(study.results_first_submitted) or '',
+            # results_first_submitted_qc=str(study.results_first_submitted_qc)
+            # or '',
+            # results_first_posted=str(study.results_first_posted) or '',
+            # disposition_first_submitted=str(study.disposition_first_submitted)
+            # or '',
+            # disposition_first_submitted_qc=str(
+            #     study.disposition_first_submitted_qc) or '',
+            # disposition_first_posted=str(study.disposition_first_posted) or '',
+            # last_update_submitted=str(study.last_update_submitted) or '',
+            # last_update_submitted_qc=str(study.last_update_submitted_qc) or '',
+            # last_update_posted=str(study.last_update_posted) or '',
+            # primary_completion_date=str(study.primary_completion_date) or '',
             sponsors=sponsors,
             conditions=conditions,
             interventions=interventions,
