@@ -86,6 +86,7 @@ type alias Study =
     , biospecDescription : String
     , startDate : String
     , completionDate : String
+    , enrollment : Int
 
     --, verificationDate : String
     --, studyFirstSubmitted : String
@@ -331,12 +332,8 @@ viewStudy study =
                     , td [] [ text study.officialTitle ]
                     ]
                 , tr []
-                    [ th [] [ text "Detailed Description" ]
-                    , td [] [ text study.detailedDescription ]
-                    ]
-                , tr []
-                    [ th [] [ text "Brief Summary" ]
-                    , td [] [ text study.briefSummary ]
+                    [ th [] [ text "Phase" ]
+                    , td [] [ text study.phase ]
                     ]
                 , tr []
                     [ th [] [ text "Overall Status" ]
@@ -347,12 +344,20 @@ viewStudy study =
                     , td [] [ text study.lastKnownStatus ]
                     ]
                 , tr []
-                    [ th [] [ text "Why Stopped" ]
-                    , td [] [ text study.whyStopped ]
+                    [ th [] [ text "Enrollment" ]
+                    , td [] [ text <| String.fromInt study.enrollment ]
                     ]
                 , tr []
-                    [ th [] [ text "Phase" ]
-                    , td [] [ text study.phase ]
+                    [ th [] [ text "Detailed Description" ]
+                    , td [] [ text study.detailedDescription ]
+                    ]
+                , tr []
+                    [ th [] [ text "Brief Summary" ]
+                    , td [] [ text study.briefSummary ]
+                    ]
+                , tr []
+                    [ th [] [ text "Why Stopped" ]
+                    , td [] [ text study.whyStopped ]
                     ]
                 , tr []
                     [ th [] [ text "Study Type" ]
@@ -529,6 +534,7 @@ decoderStudy =
         |> Json.Decode.Pipeline.required "biospec_description" string
         |> Json.Decode.Pipeline.required "start_date" string
         |> Json.Decode.Pipeline.required "completion_date" string
+        |> Json.Decode.Pipeline.required "enrollment" int
         --|> Json.Decode.Pipeline.required "verification_date" string
         --|> Json.Decode.Pipeline.required "study_first_submitted" string
         --|> Json.Decode.Pipeline.required "study_first_submitted_qc" string

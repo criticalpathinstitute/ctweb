@@ -40,6 +40,7 @@ type alias Model =
     , phases : WebData (List Phase)
     , sponsorFilter : Maybe String
     , selectedStudies : List Study
+    , queryEnrollment : Maybe Int
     , queryText : Maybe String
     , querySelectedConditions : List Condition
     , querySelectedPhases : List Phase
@@ -98,6 +99,7 @@ type Msg
     | SetConditionFilter String
     | SetSponsorFilter String
     | SetQueryText String
+    | SetEnrollment String
     | SearchResponse (WebData (List Study))
     | SponsorsResponse (WebData (List Sponsor))
 
@@ -115,6 +117,7 @@ init session =
             , sponsors = RemoteData.NotAsked
             , sponsorFilter = Nothing
             , selectedStudies = []
+            , queryEnrollment = Nothing
             , queryText = Nothing
             , querySelectedConditions = []
             , querySelectedPhases = []
@@ -167,7 +170,8 @@ update msg model =
                 newModel =
                     { model | querySelectedConditions = newConditions }
             in
-            ( newModel, doSearch newModel )
+            -- ( newModel, doSearch newModel )
+            ( newModel, Cmd.none )
 
         AddPhase phaseId ->
             let
@@ -199,7 +203,8 @@ update msg model =
                 newModel =
                     { model | querySelectedPhases = newPhases }
             in
-            ( newModel, doSearch newModel )
+            -- ( newModel, doSearch newModel )
+            ( newModel, Cmd.none )
 
         AddSponsor sponsorId ->
             let
@@ -230,7 +235,8 @@ update msg model =
                 newModel =
                     { model | querySelectedSponsors = newSponsors }
             in
-            ( newModel, doSearch newModel )
+            -- ( newModel, doSearch newModel )
+            ( newModel, Cmd.none )
 
         CartMsg subMsg ->
             let
@@ -289,7 +295,8 @@ update msg model =
                 newModel =
                     { model | querySelectedConditions = newConditions }
             in
-            ( newModel, doSearch newModel )
+            -- ( newModel, doSearch newModel )
+            ( newModel, Cmd.none )
 
         RemovePhase newPhase ->
             let
@@ -301,7 +308,8 @@ update msg model =
                 newModel =
                     { model | querySelectedPhases = newPhases }
             in
-            ( newModel, doSearch newModel )
+            -- ( newModel, doSearch newModel )
+            ( newModel, Cmd.none )
 
         RemoveSponsor sponsor ->
             let
@@ -313,7 +321,8 @@ update msg model =
                 newModel =
                     { model | querySelectedSponsors = newSponsors }
             in
-            ( newModel, doSearch newModel )
+            -- ( newModel, doSearch newModel )
+            ( newModel, Cmd.none )
 
         Reset ->
             let
@@ -379,6 +388,9 @@ update msg model =
                             Just query
             in
             ( { model | queryText = newQuery }, Cmd.none )
+
+        SetEnrollment enrollment ->
+            ( { model | queryEnrollment = String.toInt enrollment }, Cmd.none )
 
         SponsorsResponse data ->
             ( { model | sponsors = data }, Cmd.none )
@@ -582,6 +594,12 @@ view model =
                      ]
                         ++ viewSelectedPhases
                     )
+                , Form.group []
+                    [ Form.label [ for "enrollment" ]
+                        [ text "Enrollment:" ]
+                    , Input.text
+                        [ Input.attrs [ onInput SetEnrollment ] ]
+                    ]
                 , Form.group []
                     ([ Form.label [ for "condition" ]
                         [ text "Condition:" ]
@@ -830,6 +848,14 @@ doSearch model =
                             )
                         )
 
+        enrollment =
+            case model.queryEnrollment of
+                Just n ->
+                    Just (String.fromInt n)
+
+                _ ->
+                    Nothing
+
         phases =
             case List.length model.querySelectedPhases of
                 0 ->
@@ -851,6 +877,9 @@ doSearch model =
                       )
                     , ( "phases"
                       , phases
+                      )
+                    , ( "enrollment"
+                      , enrollment
                       )
                     , ( "conditions"
                       , conditions

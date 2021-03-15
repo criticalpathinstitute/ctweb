@@ -27,8 +27,8 @@ config = ConfigParser()
 config.read(config_file)
 
 app = FastAPI(root_path=config['DEFAULT']['api_prefix'])
-client = MongoClient(config['DEFAULT']['mongo_url'])
-mongo_db = client['ct']
+#client = MongoClient(config['DEFAULT']['mongo_url'])
+#mongo_db = client['ct']
 
 origins = [
     "http://localhost:*",
@@ -67,6 +67,7 @@ class StudyDownload(BaseModel):
     nct_id: str
     title: str
     detailed_description: str
+
 
 class StudySearchResult(BaseModel):
     study_id: int
@@ -133,6 +134,7 @@ class StudyDetail(BaseModel):
     keywords: Optional[str]
     start_date: Optional[str]
     completion_date: Optional[str]
+    enrollment: Optional[int]
     # verification_date: str
     # study_first_submitted: str
     # study_first_submitted_qc: str
@@ -202,23 +204,38 @@ def view_cart(study_ids: str) -> List[StudyCart]:
         return []
 
     def f(rec):
-        return StudyCart(
-            study_id=rec['study_id'],
-            nct_id=rec['nct_id'],
-            title=rec['official_title'])
+        return StudyCart(study_id=rec['study_id'],
+                         nct_id=rec['nct_id'],
+                         title=rec['official_title'])
 
     return list(map(f, res))
 
+
 # --------------------------------------------------
 @app.get('/download', response_model=List[StudyDownload])
-def download(study_ids: str) -> StreamingResponse:
+def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
     """ Download """
 
+    ids = list(filter(str.isdigit, re.split('\s*,\s*', study_ids)))
+    if not ids:
+        return []
+
+    default_fields = [
+        'nct_id', 'official_title', 'brief_title', 'brief_summary',
+        'detailed_description', 'keywords', 'enrollment', 'start_date',
+        'completion_date', 'last_known_status', 'overall_status'
+    ]
+
     sql = """
-        select s.study_id, s.nct_id, s.official_title, s.detailed_description
-        from   study s
+        select s.nct_id, s.official_title, s.brief_title, s.brief_summary,
+               s.detailed_description, s.keywords, s.enrollment, s.start_date,
+               s.completion_date, st1.status_name as last_known_status,
+               st2.status_name as overall_status
+        from   study s, status as st1, status as st2
         where  s.study_id in ({})
-    """.format(study_ids)
+        and    s.last_known_status_id=st1.status_id
+        and    s.overall_status_id=st2.status_id
+    """.format(', '.join(ids))
     # print(sql)
 
     res = []
@@ -230,20 +247,17 @@ def download(study_ids: str) -> StreamingResponse:
     except:
         dbh.rollback()
 
-    def f(rec):
-        return StudySearchResult(
-            study_id=rec['study_id'],
-            nct_id=rec['nct_id'],
-            title=rec['official_title'],
-            detailed_description=rec['detailed_description'])
+    def clean(s):
+        if isinstance(s, str):
+            return re.sub('\s+', ' ', s)
 
     stream = io.StringIO()
     if res:
-        flds = ['study_id', 'nct_id', 'official_title', 'detailed_description']
+        flds = fields.split(',') if fields else default_fields
         writer = csv.DictWriter(stream, fieldnames=flds, delimiter=',')
         writer.writeheader()
-        for row in res:
-            writer.writerow({f: row[f] for f in flds})
+        for row in map(dict, res):
+            writer.writerow({f: clean(row[f]) for f in flds})
 
     response = StreamingResponse(iter([stream.getvalue()]),
                                  media_type="text/csv")
@@ -255,6 +269,9 @@ def download(study_ids: str) -> StreamingResponse:
 # --------------------------------------------------
 @app.get('/search', response_model=List[StudySearchResult])
 def search(text: Optional[str] = '',
+           enrollment: Optional[int] = 0,
+           overall_status_id: Optional[int] = 0,
+           last_known_status_id: Optional[int] = 0,
            conditions: Optional[str] = '',
            sponsors: Optional[str] = '',
            phases: Optional[str] = '') -> List[StudySearchResult]:
@@ -272,11 +289,29 @@ def search(text: Optional[str] = '',
 
     if phases:
         where.append({
+            'table': '',
+            'where': ['s.phase_id in ({})'.format(phases)]
+        })
+
+    if enrollment > 0:
+        where.append({
+            'table': '',
+            'where': ['s.enrollment >= {}'.format(enrollment)]
+        })
+
+    if overall_status_id > 0:
+        where.append({
             'table':
             '',
-            'where': [
-                's.phase_id in ({})'.format(phases)
-            ]
+            'where': ['s.overall_status_id = {}'.format(overall_status_id)]
+        })
+
+    if last_known_status_id > 0:
+        where.append({
+            'table':
+            '',
+            'where':
+            ['s.last_known_status_id = {}'.format(last_known_status_id)]
         })
 
     if conditions:
@@ -299,19 +334,18 @@ def search(text: Optional[str] = '',
             ]
         })
 
-
     if not where:
         return []
 
     table_names = ', '.join(
         filter(None, ['study s'] + list(map(lambda x: x['table'], where))))
+
     where = '\nand '.join(chain.from_iterable(map(lambda x: x['where'],
                                                   where)))
     sql = """
-        select s.study_id, s.nct_id, s.official_title, s.detailed_description
+        select s.study_id, s.nct_id, s.official_title
         from   {}
-        where  s.nct_id != ''
-        and {}
+        where  {}
     """.format(table_names, where)
 
     # print(sql)
@@ -326,10 +360,9 @@ def search(text: Optional[str] = '',
         dbh.rollback()
 
     def f(rec):
-        return StudySearchResult(
-            study_id=rec['study_id'],
-            nct_id=rec['nct_id'],
-            title=rec['official_title'] or 'NA')
+        return StudySearchResult(study_id=rec['study_id'],
+                                 nct_id=rec['nct_id'],
+                                 title=rec['official_title'] or 'NA')
 
     return list(map(f, res))
 
@@ -380,8 +413,9 @@ def study(nct_id: str) -> StudyDetail:
         ]
 
         interventions = [
-            StudyIntervention(intervention_id=c.intervention_id,
-                              intervention_name=c.intervention.intervention_name)
+            StudyIntervention(
+                intervention_id=c.intervention_id,
+                intervention_name=c.intervention.intervention_name)
             for c in ct.StudyToIntervention.select().where(
                 ct.StudyToIntervention.study_id == study.study_id)
         ]
@@ -433,6 +467,7 @@ def study(nct_id: str) -> StudyDetail:
             keywords=study.keywords or '',
             start_date=str(study.start_date) or '',
             completion_date=str(study.completion_date) or '',
+            enrollment=study.enrollment,
             # verification_date=str(study.verification_date) or '',
             # study_first_submitted=str(study.study_first_submitted) or '',
             # study_first_submitted_qc=str(study.study_first_submitted_qc) or '',

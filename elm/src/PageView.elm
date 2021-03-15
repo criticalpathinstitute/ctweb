@@ -8,7 +8,7 @@ import Bootstrap.Utilities.Spacing as Spacing
 import Browser exposing (Document)
 import Cart
 import Html exposing (Html, a, div, img, input, span, text)
-import Html.Attributes exposing (class, href, placeholder, src, style)
+import Html.Attributes exposing (class, href, placeholder, src, style, target)
 import Icon
 import Route exposing (Route)
 import Session exposing (Session)
@@ -47,7 +47,11 @@ view session navConfig navbarState content =
                         []
                     ]
                 |> Navbar.items
-                    [ Navbar.itemLink [ Route.href Route.Cart ] [ cartButton ]
+                    [ Navbar.itemLink
+                        [ Route.href Route.Cart
+                        , target "_blank"
+                        ]
+                        [ cartButton ]
                     ]
                 |> Navbar.view navbarState
     in
