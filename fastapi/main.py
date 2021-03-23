@@ -269,12 +269,14 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
 # --------------------------------------------------
 @app.get('/search', response_model=List[StudySearchResult])
 def search(text: Optional[str] = '',
-           enrollment: Optional[int] = 0,
+           enrollment: Optional[str] = '',
            overall_status_id: Optional[int] = 0,
            last_known_status_id: Optional[int] = 0,
-           conditions: Optional[str] = '',
-           sponsors: Optional[str] = '',
-           phases: Optional[str] = '') -> List[StudySearchResult]:
+           condition_ids: Optional[str] = '',
+           sponsor_ids: Optional[str] = '',
+           condition_names: Optional[str] = '',
+           sponsor_names: Optional[str] = '',
+           phase_ids: Optional[str] = '') -> List[StudySearchResult]:
     """ Search """
 
     flds = ['study_id', 'nct_id', 'official_title']
@@ -282,73 +284,88 @@ def search(text: Optional[str] = '',
 
     if text:
         where.append({
-            'table':
-            '',
+            'tables': [],
             'where': ['s.all_text @@ to_tsquery({})'.format(make_bool(text))]
         })
 
-    if phases:
+    if phase_ids:
+        ids = list(filter(str.isdigit, phase_ids.split(',')))
         where.append({
-            'table': '',
-            'where': ['s.phase_id in ({})'.format(phases)]
+            'tables': [],
+            'where': ['s.phase_id in ({})'.format(ids)]
         })
 
-    if enrollment > 0:
-        where.append({
-            'table': '',
-            'where': ['s.enrollment >= {}'.format(enrollment)]
-        })
+    if match := re.match(r'(=|==|<|<=|>|>=)?\s*(\d+)', enrollment):
+        op = match.group(1) or '>='
+        num = match.group(2)
+        where.append({'tables': [], 'where': [f's.enrollment {op} {num}']})
 
     if overall_status_id > 0:
         where.append({
-            'table':
-            '',
+            'tables': [],
             'where': ['s.overall_status_id = {}'.format(overall_status_id)]
         })
 
     if last_known_status_id > 0:
         where.append({
-            'table':
-            '',
+            'tables': [],
             'where':
             ['s.last_known_status_id = {}'.format(last_known_status_id)]
         })
 
-    if conditions:
+    if condition_names:
+        names = 'c.condition_name @@ to_tsquery({})'.format(
+            make_bool(condition_names))
+
         where.append({
-            'table':
-            'study_to_condition s2c',
+            'tables': ['study_to_condition s2c', 'condition c'],
             'where': [
-                's.study_id=s2c.study_id',
-                's2c.condition_id in ({})'.format(conditions)
+                's.study_id=s2c.study_id', 's2c.condition_id=c.condition_id',
+                names
             ]
         })
 
-    if sponsors:
+    if sponsor_names:
+        names = 'sp.sponsor_name @@ to_tsquery({})'.format(
+            make_bool(sponsor_names))
         where.append({
-            'table':
-            'study_to_sponsor s2p',
+            'tables': ['study_to_sponsor s2p', 'sponsor sp'],
+            'where':
+            ['s.study_id=s2p.study_id', 's2p.sponsor_id=sp.sponsor_id', names]
+        })
+
+    if condition_ids:
+        where.append({
+            'tables': ['study_to_condition s2c'],
+            'where': [
+                's.study_id=s2c.study_id',
+                's2c.condition_id in ({})'.format(condition_ids)
+            ]
+        })
+
+    if sponsor_ids:
+        where.append({
+            'tables': ['study_to_sponsor s2p'],
             'where': [
                 's.study_id=s2p.study_id',
-                's2p.sponsor_id in ({})'.format(sponsors)
+                's2p.sponsor_id in ({})'.format(sponsor_ids)
             ]
         })
 
     if not where:
         return []
 
-    table_names = ', '.join(
-        filter(None, ['study s'] + list(map(lambda x: x['table'], where))))
-
+    table_names = ['study s'] + list(
+        chain.from_iterable(map(lambda x: x['tables'], where)))
     where = '\nand '.join(chain.from_iterable(map(lambda x: x['where'],
                                                   where)))
     sql = """
         select s.study_id, s.nct_id, s.official_title
         from   {}
         where  {}
-    """.format(table_names, where)
+    """.format(', '.join(table_names), where)
 
-    # print(sql)
+    print(sql)
 
     res = []
     try:
@@ -468,23 +485,6 @@ def study(nct_id: str) -> StudyDetail:
             start_date=str(study.start_date) or '',
             completion_date=str(study.completion_date) or '',
             enrollment=study.enrollment,
-            # verification_date=str(study.verification_date) or '',
-            # study_first_submitted=str(study.study_first_submitted) or '',
-            # study_first_submitted_qc=str(study.study_first_submitted_qc) or '',
-            # study_first_posted=str(study.study_first_posted) or '',
-            # results_first_submitted=str(study.results_first_submitted) or '',
-            # results_first_submitted_qc=str(study.results_first_submitted_qc)
-            # or '',
-            # results_first_posted=str(study.results_first_posted) or '',
-            # disposition_first_submitted=str(study.disposition_first_submitted)
-            # or '',
-            # disposition_first_submitted_qc=str(
-            #     study.disposition_first_submitted_qc) or '',
-            # disposition_first_posted=str(study.disposition_first_posted) or '',
-            # last_update_submitted=str(study.last_update_submitted) or '',
-            # last_update_submitted_qc=str(study.last_update_submitted_qc) or '',
-            # last_update_posted=str(study.last_update_posted) or '',
-            # primary_completion_date=str(study.primary_completion_date) or '',
             sponsors=sponsors,
             conditions=conditions,
             interventions=interventions,

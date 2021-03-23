@@ -87,21 +87,6 @@ type alias Study =
     , startDate : String
     , completionDate : String
     , enrollment : Int
-
-    --, verificationDate : String
-    --, studyFirstSubmitted : String
-    --, studyFirstSubmittedQC : String
-    --, studyFirstPosted : String
-    --, resultsFirstSubmitted : String
-    --, resultsFirstSubmittedQC : String
-    --, resultsFirstPosted : String
-    --, dispositionFirstSubmitted : String
-    --, dispositionFirstSubmittedQC : String
-    --, dispositionFirstPosted : String
-    --, lastUpdateSubmitted : String
-    --, lastUpdateSubmittedQC : String
-    --, lastUpdatePosted : String
-    --, primaryCompletionDate : String
     , sponsors : List Sponsor
     , conditions : List Condition
     , interventions : List Intervention
@@ -535,20 +520,6 @@ decoderStudy =
         |> Json.Decode.Pipeline.required "start_date" string
         |> Json.Decode.Pipeline.required "completion_date" string
         |> Json.Decode.Pipeline.required "enrollment" int
-        --|> Json.Decode.Pipeline.required "verification_date" string
-        --|> Json.Decode.Pipeline.required "study_first_submitted" string
-        --|> Json.Decode.Pipeline.required "study_first_submitted_qc" string
-        --|> Json.Decode.Pipeline.required "study_first_posted" string
-        --|> Json.Decode.Pipeline.required "results_first_submitted" string
-        --|> Json.Decode.Pipeline.required "results_first_submitted_qc" string
-        --|> Json.Decode.Pipeline.required "results_first_posted" string
-        --|> Json.Decode.Pipeline.required "disposition_first_submitted" string
-        --|> Json.Decode.Pipeline.required "disposition_first_submitted_qc" string
-        --|> Json.Decode.Pipeline.required "disposition_first_posted" string
-        --|> Json.Decode.Pipeline.required "last_update_submitted" string
-        --|> Json.Decode.Pipeline.required "last_update_submitted_qc" string
-        --|> Json.Decode.Pipeline.required "last_update_posted" string
-        --|> Json.Decode.Pipeline.required "primary_completion_date" string
         |> Json.Decode.Pipeline.optional "sponsors"
             (Json.Decode.list decoderSponsor)
             []
