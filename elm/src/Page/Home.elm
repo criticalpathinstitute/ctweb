@@ -36,11 +36,13 @@ type alias Model =
     , queryConditions : Maybe String
     , queryEnrollment : Maybe Int
     , querySelectedPhases : List Phase
+    , querySelectedStudyTypes : List StudyType
     , querySponsors : Maybe String
     , queryText : Maybe String
     , searchResults : WebData (List Study)
     , selectedStudies : List Study
     , session : Session
+    , studyTypes : WebData (List StudyType)
     , summary : WebData Summary
     }
 
@@ -66,6 +68,13 @@ type alias Sponsor =
     }
 
 
+type alias StudyType =
+    { studyTypeId : Int
+    , studyTypeName : String
+    , numStudies : Int
+    }
+
+
 type alias Summary =
     { numStudies : Int
     }
@@ -81,12 +90,15 @@ type alias Study =
 
 type Msg
     = AddPhase String
+    | AddStudyType String
     | CartMsg Cart.Msg
     | DoSearch
     | RemovePhase Phase
+    | RemoveStudyType StudyType
     | Reset
     | PhasesResponse (WebData (List Phase))
     | SummaryResponse (WebData Summary)
+    | StudyTypesResponse (WebData (List StudyType))
     | SetConditions String
     | SetSponsors String
     | SetQueryText String
@@ -101,11 +113,13 @@ initialModel session =
     , queryConditions = Nothing
     , queryEnrollment = Nothing
     , querySelectedPhases = []
+    , querySelectedStudyTypes = []
     , querySponsors = Nothing
     , queryText = Nothing
     , searchResults = RemoteData.NotAsked
     , selectedStudies = []
     , session = session
+    , studyTypes = RemoteData.NotAsked
     , summary = RemoteData.NotAsked
     }
 
@@ -113,7 +127,7 @@ initialModel session =
 init : Session -> ( Model, Cmd Msg )
 init session =
     ( initialModel session
-    , Cmd.batch [ getSummary, getPhases ]
+    , Cmd.batch [ getSummary, getPhases, getStudyTypes ]
     )
 
 
@@ -126,7 +140,15 @@ update msg model =
                     Set.fromList <|
                         List.map (\p -> p.phaseId) model.querySelectedPhases
 
-                currentPhases =
+                newPhaseIds =
+                    case String.toInt phaseId of
+                        Just newId ->
+                            Set.insert newId currentPhaseIds
+
+                        _ ->
+                            currentPhaseIds
+
+                allPhases =
                     case model.phases of
                         RemoteData.Success data ->
                             data
@@ -135,20 +157,44 @@ update msg model =
                             []
 
                 newPhases =
-                    case String.toInt phaseId of
-                        Just newId ->
-                            let
-                                newPhaseIds =
-                                    Set.insert newId currentPhaseIds
-                            in
-                            List.filter (\p -> Set.member p.phaseId newPhaseIds)
-                                currentPhases
-
-                        _ ->
-                            currentPhases
+                    List.filter (\p -> Set.member p.phaseId newPhaseIds)
+                        allPhases
 
                 newModel =
                     { model | querySelectedPhases = newPhases }
+            in
+            ( newModel, Cmd.none )
+
+        AddStudyType studyTypeId ->
+            let
+                currentStudyTypeIds =
+                    Set.fromList <|
+                        List.map (\s -> s.studyTypeId)
+                            model.querySelectedStudyTypes
+
+                allStudyTypes =
+                    case model.studyTypes of
+                        RemoteData.Success data ->
+                            data
+
+                        _ ->
+                            []
+
+                newStudyTypeIds =
+                    case String.toInt studyTypeId of
+                        Just newId ->
+                            Set.insert newId currentStudyTypeIds
+
+                        _ ->
+                            currentStudyTypeIds
+
+                newStudyTypes =
+                    List.filter
+                        (\s -> Set.member s.studyTypeId newStudyTypeIds)
+                        allStudyTypes
+
+                newModel =
+                    { model | querySelectedStudyTypes = newStudyTypes }
             in
             ( newModel, Cmd.none )
 
@@ -206,8 +252,29 @@ update msg model =
             in
             ( newModel, Cmd.none )
 
+        RemoveStudyType newStudyType ->
+            let
+                newStudyTypes =
+                    List.filter
+                        (\studyType -> studyType /= newStudyType)
+                        model.querySelectedStudyTypes
+
+                newModel =
+                    { model | querySelectedStudyTypes = newStudyTypes }
+            in
+            ( newModel, Cmd.none )
+
         Reset ->
-            ( initialModel model.session, Cmd.none )
+            let
+                newModel =
+                    initialModel model.session
+            in
+            ( { newModel
+                | phases = model.phases
+                , studyTypes = model.studyTypes
+              }
+            , Cmd.none
+            )
 
         SummaryResponse data ->
             ( { model | summary = data }
@@ -235,6 +302,11 @@ update msg model =
         SetEnrollment enrollment ->
             ( { model | queryEnrollment = String.toInt enrollment }, Cmd.none )
 
+        StudyTypesResponse data ->
+            ( { model | studyTypes = data }
+            , Cmd.none
+            )
+
 
 view : Model -> Html Msg
 view model =
@@ -255,9 +327,6 @@ view model =
 
         empty =
             [ Select.item [ value "" ] [ text "--Select--" ] ]
-
-        addAll =
-            [ Select.item [ value "-1" ] [ text "[All]" ] ]
 
         mkPhasesSelect =
             let
@@ -293,6 +362,40 @@ view model =
                 _ ->
                     text "Loading phases..."
 
+        mkStudyTypesSelect =
+            let
+                mkSelect data =
+                    case List.length data of
+                        0 ->
+                            text "No study types"
+
+                        _ ->
+                            Select.select
+                                [ Select.id "study_type"
+                                , Select.onChange AddStudyType
+                                ]
+                                (empty ++ List.map mkSelectItem data)
+
+                mkSelectItem studyType =
+                    Select.item
+                        [ value <| String.fromInt studyType.studyTypeId ]
+                        [ text <|
+                            studyType.studyTypeName
+                                ++ " ("
+                                ++ String.fromInt studyType.numStudies
+                                ++ ")"
+                        ]
+            in
+            case model.studyTypes of
+                RemoteData.Success data ->
+                    mkSelect data
+
+                RemoteData.Failure httpError ->
+                    text (viewHttpErrorMessage httpError)
+
+                _ ->
+                    text "Loading study types..."
+
         viewPhase phase =
             Button.button
                 [ Button.outlinePrimary
@@ -300,8 +403,18 @@ view model =
                 ]
                 [ text (phase.phaseName ++ " ⦻") ]
 
+        viewStudyType studyType =
+            Button.button
+                [ Button.outlinePrimary
+                , Button.onClick (RemoveStudyType studyType)
+                ]
+                [ text (studyType.studyTypeName ++ " ⦻") ]
+
         viewSelectedPhases =
             List.map viewPhase model.querySelectedPhases
+
+        viewSelectedStudyTypes =
+            List.map viewStudyType model.querySelectedStudyTypes
 
         searchForm =
             Form.form [ onSubmit DoSearch ]
@@ -309,19 +422,6 @@ view model =
                     [ Form.label [ for "text" ] [ text "Text:" ]
                     , Input.text
                         [ Input.attrs [ onInput SetQueryText ] ]
-                    ]
-                , Form.group []
-                    ([ Form.label [ for "phases" ]
-                        [ text "Phase:" ]
-                     , mkPhasesSelect
-                     ]
-                        ++ viewSelectedPhases
-                    )
-                , Form.group []
-                    [ Form.label [ for "enrollment" ]
-                        [ text "Enrollment:" ]
-                    , Input.text
-                        [ Input.attrs [ onInput SetEnrollment ] ]
                     ]
                 , Form.group []
                     [ Form.label [ for "condition" ]
@@ -334,6 +434,26 @@ view model =
                         [ text "Sponsor:" ]
                     , Input.text
                         [ Input.attrs [ onInput SetSponsors ] ]
+                    ]
+                , Form.group []
+                    ([ Form.label [ for "phases" ]
+                        [ text "Phase:" ]
+                     , mkPhasesSelect
+                     ]
+                        ++ viewSelectedPhases
+                    )
+                , Form.group []
+                    ([ Form.label [ for "study_types" ]
+                        [ text "Study Type:" ]
+                     , mkStudyTypesSelect
+                     ]
+                        ++ viewSelectedStudyTypes
+                    )
+                , Form.group []
+                    [ Form.label [ for "enrollment" ]
+                        [ text "Enrollment:" ]
+                    , Input.text
+                        [ Input.attrs [ onInput SetEnrollment ] ]
                     ]
                 , Button.button
                     [ Button.primary
@@ -506,6 +626,17 @@ getPhases =
         }
 
 
+getStudyTypes : Cmd Msg
+getStudyTypes =
+    Http.get
+        { url = apiServer ++ "/study_types"
+        , expect =
+            Http.expectJson
+                (RemoteData.fromResult >> StudyTypesResponse)
+                (Json.Decode.list decoderStudyType)
+        }
+
+
 doSearch : Model -> Cmd Msg
 doSearch model =
     let
@@ -525,7 +656,7 @@ doSearch model =
                 _ ->
                     Nothing
 
-        phases =
+        phaseIds =
             case List.length model.querySelectedPhases of
                 0 ->
                     Nothing
@@ -538,14 +669,30 @@ doSearch model =
                             )
                         )
 
+        studyTypeIds =
+            case List.length model.querySelectedStudyTypes of
+                0 ->
+                    Nothing
+
+                _ ->
+                    Just
+                        (String.join ","
+                            (List.map (\s -> String.fromInt s.studyTypeId)
+                                model.querySelectedStudyTypes
+                            )
+                        )
+
         queryParams =
             Url.Builder.toQuery <|
                 List.filterMap builder
                     [ ( "text"
                       , model.queryText
                       )
-                    , ( "phases"
-                      , phases
+                    , ( "phase_ids"
+                      , phaseIds
+                      )
+                    , ( "study_type_ids"
+                      , studyTypeIds
                       )
                     , ( "enrollment"
                       , enrollment
@@ -626,6 +773,14 @@ decoderSponsor =
     Json.Decode.succeed Sponsor
         |> Json.Decode.Pipeline.required "sponsor_id" int
         |> Json.Decode.Pipeline.required "sponsor_name" string
+        |> Json.Decode.Pipeline.required "num_studies" int
+
+
+decoderStudyType : Decoder StudyType
+decoderStudyType =
+    Json.Decode.succeed StudyType
+        |> Json.Decode.Pipeline.required "study_type_id" int
+        |> Json.Decode.Pipeline.required "study_type_name" string
         |> Json.Decode.Pipeline.required "num_studies" int
 
 

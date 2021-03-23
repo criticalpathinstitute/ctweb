@@ -135,25 +135,17 @@ class StudyDetail(BaseModel):
     start_date: Optional[str]
     completion_date: Optional[str]
     enrollment: Optional[int]
-    # verification_date: str
-    # study_first_submitted: str
-    # study_first_submitted_qc: str
-    # study_first_posted: str
-    # results_first_submitted: str
-    # results_first_submitted_qc: str
-    # results_first_posted: str
-    # disposition_first_submitted: str
-    # disposition_first_submitted_qc: str
-    # disposition_first_posted: str
-    # last_update_submitted: str
-    # last_update_submitted_qc: str
-    # last_update_posted: str
-    # primary_completion_date: str
     sponsors: List[StudySponsor]
     conditions: List[StudyCondition]
     interventions: List[StudyIntervention]
     study_outcomes: List[StudyOutcome]
     study_docs: List[StudyDoc]
+
+
+class StudyType(BaseModel):
+    study_type_id: int
+    study_type_name: str
+    num_studies: int
 
 
 class Sponsor(BaseModel):
@@ -276,6 +268,7 @@ def search(text: Optional[str] = '',
            sponsor_ids: Optional[str] = '',
            condition_names: Optional[str] = '',
            sponsor_names: Optional[str] = '',
+           study_type_ids: Optional[str] = '',
            phase_ids: Optional[str] = '') -> List[StudySearchResult]:
     """ Search """
 
@@ -292,7 +285,14 @@ def search(text: Optional[str] = '',
         ids = list(filter(str.isdigit, phase_ids.split(',')))
         where.append({
             'tables': [],
-            'where': ['s.phase_id in ({})'.format(ids)]
+            'where': ['s.phase_id in ({})'.format(','.join(ids))]
+        })
+
+    if study_type_ids:
+        ids = list(filter(str.isdigit, study_type_ids.split(',')))
+        where.append({
+            'tables': [],
+            'where': ['s.study_type_id in ({})'.format(','.join(ids))]
         })
 
     if match := re.match(r'(=|==|<|<=|>|>=)?\s*(\d+)', enrollment):
@@ -490,6 +490,32 @@ def study(nct_id: str) -> StudyDetail:
             interventions=interventions,
             study_outcomes=study_outcomes,
             study_docs=study_docs)
+
+
+# --------------------------------------------------
+@app.get('/study_types', response_model=List[StudyType])
+def study_types(study_type: Optional[str] = '') -> List[StudyType]:
+    """ Study Types """
+
+    clause = f"and t.study_type_name like '%{study_type}%'" \
+        if study_type else ''
+    sql = f"""
+        select   t.study_type_id, t.study_type_name,
+                 count(s.study_id) as num_studies
+        from     study s, study_type t
+        where    s.study_type_id=t.study_type_id
+        {clause}
+        group by 1, 2
+        order by 2
+    """
+
+    cur = get_cur()
+    cur.execute(sql)
+    res = cur.fetchall()
+    types = list(map(lambda r: StudyType(**dict(r)), res))
+    cur.close()
+
+    return types
 
 
 # --------------------------------------------------
