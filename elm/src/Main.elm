@@ -12,6 +12,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline
 import Json.Encode as Encode exposing (Value)
 import Page.Cart
+import Page.Conditions
 import Page.Home
 import Page.Study
 import PageView
@@ -49,13 +50,15 @@ type alias Flags =
 
 
 type Page
-    = HomePage Page.Home.Model
+    = CartPage Page.Cart.Model
+    | ConditionsPage Page.Conditions.Model
+    | HomePage Page.Home.Model
     | StudyPage String Page.Study.Model
-    | CartPage Page.Cart.Model
 
 
 type Msg
     = CartMsg Page.Cart.Msg
+    | ConditionsMsg Page.Conditions.Msg
     | HomeMsg Page.Home.Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
@@ -66,8 +69,10 @@ type Msg
 flagsDecoder : Decoder Flags
 flagsDecoder =
     Decode.succeed Flags
-        |> Json.Decode.Pipeline.required "cart" (Decode.nullable CartData.decoder)
-        |> Json.Decode.Pipeline.required "cred" (Decode.nullable Credentials.decoder)
+        |> Json.Decode.Pipeline.required "cart"
+            (Decode.nullable CartData.decoder)
+        |> Json.Decode.Pipeline.required "cred"
+            (Decode.nullable Credentials.decoder)
 
 
 init : Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
@@ -144,6 +149,18 @@ update msg model =
             , Cmd.map CartMsg newCmd
             )
 
+        ( ConditionsMsg subMsg, ConditionsPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.Conditions.update subMsg subModel
+            in
+            ( { model
+                | curPage = ConditionsPage newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map ConditionsMsg newCmd
+            )
+
         ( HomeMsg subMsg, HomePage subModel ) ->
             let
                 ( newSubModel, newCmd ) =
@@ -184,6 +201,12 @@ view model =
                 navConfig
                 model.navbarState
                 (Html.map CartMsg (Page.Cart.view subModel))
+
+        ConditionsPage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map ConditionsMsg (Page.Conditions.view subModel))
 
         HomePage subModel ->
             PageView.view model.session
@@ -230,6 +253,15 @@ changeRouteTo maybeRoute model =
             in
             ( { model | curPage = CartPage subModel }
             , Cmd.map CartMsg subMsg
+            )
+
+        Just Route.Conditions ->
+            let
+                ( subModel, subMsg ) =
+                    Page.Conditions.init model.session
+            in
+            ( { model | curPage = ConditionsPage subModel }
+            , Cmd.map ConditionsMsg subMsg
             )
 
         _ ->

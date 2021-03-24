@@ -48,6 +48,11 @@ view session navConfig navbarState content =
                     ]
                 |> Navbar.items
                     [ Navbar.itemLink
+                        [ Route.href Route.Conditions
+                        , target "_blank"
+                        ]
+                        [ text "Conditions" ]
+                    , Navbar.itemLink
                         [ Route.href Route.Cart
                         , target "_blank"
                         ]

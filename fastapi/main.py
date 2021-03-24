@@ -365,7 +365,7 @@ def search(text: Optional[str] = '',
         where  {}
     """.format(', '.join(table_names), where)
 
-    print(sql)
+    # print(sql)
 
     res = []
     try:
@@ -391,6 +391,7 @@ def make_bool(s: str):
     s = re.sub('[*]', '', s)
     s = re.sub('\s+and\s+', ' & ', s, re.I)
     s = re.sub('\s+or\s+', ' | ', s, re.I)
+    s = re.sub('\s+not\s+', ' ! ', s, re.I)
     return f"'{s}'"
 
 
@@ -523,7 +524,9 @@ def study_types(study_type: Optional[str] = '') -> List[StudyType]:
 def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
     """ Conditions/Num Studies """
 
-    clause = f"and c.condition like '%{name}%'" if name else ''
+    clause = 'and c.condition_name @@ to_tsquery({})'.format(
+        make_bool(name)) if name else ''
+
     sql = f"""
         select   c.condition_id, c.condition_name,
                  count(s.study_id) as num_studies
