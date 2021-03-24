@@ -33,6 +33,8 @@ import Url.Builder
 type alias Model =
     { errorMessage : Maybe String
     , phases : WebData (List Phase)
+
+    -- , queryStringCondition : Maybe String
     , queryConditions : Maybe String
     , queryEnrollment : Maybe Int
     , querySelectedPhases : List Phase
@@ -110,6 +112,8 @@ initialModel : Session -> Model
 initialModel session =
     { errorMessage = Nothing
     , phases = RemoteData.NotAsked
+
+    -- , queryStringCondition = Nothing
     , queryConditions = Nothing
     , queryEnrollment = Nothing
     , querySelectedPhases = []
@@ -124,9 +128,13 @@ initialModel session =
     }
 
 
-init : Session -> ( Model, Cmd Msg )
-init session =
-    ( initialModel session
+init : Session -> Maybe String -> ( Model, Cmd Msg )
+init session queryStringCondition =
+    let
+        model =
+            initialModel session
+    in
+    ( { model | queryConditions = queryStringCondition }
     , Cmd.batch [ getSummary, getPhases, getStudyTypes ]
     )
 
@@ -427,7 +435,12 @@ view model =
                     [ Form.label [ for "condition" ]
                         [ text "Condition:" ]
                     , Input.text
-                        [ Input.attrs [ onInput SetConditions ] ]
+                        [ Input.attrs
+                            [ onInput SetConditions
+                            , value <|
+                                Maybe.withDefault "" model.queryConditions
+                            ]
+                        ]
                     ]
                 , Form.group []
                     [ Form.label [ for "sponsor" ]
@@ -489,7 +502,7 @@ view model =
                             List.length studies
 
                         title =
-                            "Search Results (" ++ commify numStudies ++ ")"
+                            "Search Results (" ++ commify numStudies ++ ") "
 
                         mkRow study =
                             tr []

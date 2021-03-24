@@ -98,6 +98,10 @@ view model =
                     div [] [ text "Fetching conditions..." ]
 
                 RemoteData.Failure httpError ->
+                    let
+                        _ =
+                            Debug.log "The error" httpError
+                    in
                     div [] [ text (viewHttpErrorMessage httpError) ]
 
                 RemoteData.Success conditions ->
@@ -179,7 +183,8 @@ doSearch conditionsFilter =
     Http.get
         { url = url
         , expect =
-            Http.expectJson
+            -- Http.expectJson
+            expectJson
                 (RemoteData.fromResult >> ConditionsResponse)
                 (Json.Decode.list decoderCondition)
         }
@@ -196,3 +201,30 @@ decoderCondition =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
+
+
+expectJson : (Result Http.Error a -> msg) -> Json.Decode.Decoder a -> Http.Expect msg
+expectJson toMsg decoder =
+    Http.expectStringResponse toMsg <|
+        \response ->
+            case response of
+                Http.BadUrl_ url ->
+                    Err (Http.BadUrl url)
+
+                Http.Timeout_ ->
+                    Err Http.Timeout
+
+                Http.NetworkError_ ->
+                    Err Http.NetworkError
+
+                Http.BadStatus_ metadata body ->
+                    -- Err (Http.BadStatus metadata.statusCode)
+                    Err (Http.BadBody body)
+
+                Http.GoodStatus_ metadata body ->
+                    case Json.Decode.decodeString decoder body of
+                        Ok value ->
+                            Ok value
+
+                        Err err ->
+                            Err (Http.BadBody (Json.Decode.errorToString err))

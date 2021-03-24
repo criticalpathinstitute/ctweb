@@ -9,14 +9,15 @@ import os
 import psycopg2
 import psycopg2.extras
 import re
-from fastapi.responses import StreamingResponse
 from configparser import ConfigParser
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from functools import lru_cache
 from itertools import chain
-from fastapi import FastAPI
+from pydantic import BaseModel
 from pymongo import MongoClient
 from starlette.middleware.cors import CORSMiddleware
 from typing import List, Optional
-from pydantic import BaseModel
 
 #
 # Read configuration for global settings
@@ -183,22 +184,20 @@ def view_cart(study_ids: str) -> List[StudyCart]:
     """.format(study_ids)
     # print(sql)
 
+    def f(rec):
+        return StudyCart(study_id=rec['study_id'],
+                         nct_id=rec['nct_id'],
+                         title=rec['official_title'])
+
     res = []
     try:
         cur = get_cur()
         cur.execute(sql)
         res = cur.fetchall()
-        cur.close()
     except:
         dbh.rollback()
-
-    if not res:
-        return []
-
-    def f(rec):
-        return StudyCart(study_id=rec['study_id'],
-                         nct_id=rec['nct_id'],
-                         title=rec['official_title'])
+    finally:
+        cur.close()
 
     return list(map(f, res))
 
@@ -238,6 +237,8 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
         cur.close()
     except:
         dbh.rollback()
+    finally:
+        cur.close()
 
     def clean(s):
         if isinstance(s, str):
@@ -397,13 +398,19 @@ def make_bool(s: str):
 
 # --------------------------------------------------
 @app.get('/summary', response_model=Summary)
+@lru_cache()
 def summary():
     """ DB summary stats """
 
     cur = get_cur()
-    cur.execute('select count(study_id) as num_studies from study')
-    res = cur.fetchone()
-    cur.close()
+    res = []
+    try:
+        cur.execute('select count(study_id) as num_studies from study')
+        res = cur.fetchone()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
 
     return Summary(num_studies=res['num_studies'])
 
@@ -495,34 +502,38 @@ def study(nct_id: str) -> StudyDetail:
 
 # --------------------------------------------------
 @app.get('/study_types', response_model=List[StudyType])
-def study_types(study_type: Optional[str] = '') -> List[StudyType]:
+@lru_cache()
+def study_types() -> List[StudyType]:
     """ Study Types """
 
-    clause = f"and t.study_type_name like '%{study_type}%'" \
-        if study_type else ''
     sql = f"""
         select   t.study_type_id, t.study_type_name,
                  count(s.study_id) as num_studies
         from     study s, study_type t
         where    s.study_type_id=t.study_type_id
-        {clause}
         group by 1, 2
         order by 2
     """
 
     cur = get_cur()
-    cur.execute(sql)
-    res = cur.fetchall()
-    types = list(map(lambda r: StudyType(**dict(r)), res))
-    cur.close()
+    res = []
+    try:
+        cur.execute(sql)
+        res = cur.fetchall()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
 
-    return types
+    return list(map(lambda r: StudyType(**dict(r)), res))
 
 
 # --------------------------------------------------
 @app.get('/conditions', response_model=List[ConditionDropDown])
 def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
     """ Conditions/Num Studies """
+
+    # clause = f"and c.condition_name @@ plainto_tsquery('{name}')"
 
     clause = 'and c.condition_name @@ to_tsquery({})'.format(
         make_bool(name)) if name else ''
@@ -539,12 +550,17 @@ def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
     """
 
     cur = get_cur()
-    cur.execute(sql)
-    res = cur.fetchall()
-    conditions = list(map(lambda r: ConditionDropDown(**dict(r)), res))
-    cur.close()
+    res = []
+    try:
+        cur.execute(sql)
+        res = cur.fetchall()
+    except Exception as e:
+        dbh.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
 
-    return conditions
+    return list(map(lambda r: ConditionDropDown(**dict(r)), res))
 
 
 # --------------------------------------------------
@@ -562,16 +578,20 @@ def sponsors() -> List[Sponsor]:
     """
 
     cur = get_cur()
-    cur.execute(sql)
-    res = cur.fetchall()
-    conditions = list(map(lambda r: Sponsor(**dict(r)), res))
-    cur.close()
+    res = []
+    try:
+        cur.execute(sql)
+        res = cur.fetchall()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
 
-    return conditions
-
+    return list(map(lambda r: Sponsor(**dict(r)), res))
 
 # --------------------------------------------------
 @app.get('/phases', response_model=List[Phase])
+@lru_cache()
 def phases() -> List[Phase]:
     """ Phases """
 
@@ -584,9 +604,13 @@ def phases() -> List[Phase]:
     """
 
     cur = get_cur()
-    cur.execute(sql)
-    res = cur.fetchall()
-    phases = list(map(lambda r: Phase(**dict(r)), res))
-    cur.close()
+    res = []
+    try:
+        cur.execute(sql)
+        res = cur.fetchall()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
 
-    return phases
+    return list(map(lambda r: Phase(**dict(r)), res))

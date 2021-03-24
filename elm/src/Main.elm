@@ -99,7 +99,7 @@ init flags url navKey =
             Navbar.initialState NavbarMsg
 
         ( homeModel, homeMsg ) =
-            Page.Home.init session
+            Page.Home.init session Nothing
 
         initialModel =
             { key = navKey
@@ -264,9 +264,16 @@ changeRouteTo maybeRoute model =
             , Cmd.map ConditionsMsg subMsg
             )
 
+        Just (Route.Home queryString) ->
+            let
+                ( subModel, subMsg ) =
+                    Page.Home.init model.session queryString
+            in
+            ( { model | curPage = HomePage subModel }, Cmd.map HomeMsg subMsg )
+
         _ ->
             let
                 ( subModel, subMsg ) =
-                    Page.Home.init model.session
+                    Page.Home.init model.session Nothing
             in
             ( { model | curPage = HomePage subModel }, Cmd.map HomeMsg subMsg )

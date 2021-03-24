@@ -2,7 +2,7 @@ module Common exposing (commify, viewHttpErrorMessage)
 
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (Decimals(..), usLocale)
-import Http
+import Http exposing (Error(..), Expect, expectStringResponse)
 
 
 commify : Int -> String

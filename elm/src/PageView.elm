@@ -39,7 +39,7 @@ view session navConfig navbarState content =
             navConfig
                 |> Navbar.withAnimation
                 |> Navbar.brand
-                    [ Route.href Route.Home ]
+                    [ Route.href (Route.Home Nothing) ]
                     [ img
                         [ src "./assets/images/logo.png"
                         , class "d-inline-block align-top"
