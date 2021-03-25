@@ -330,7 +330,7 @@ view model =
                     viewHttpErrorMessage httpError
 
                 RemoteData.Success data ->
-                    "Search " ++ commify data.numStudies ++ " studies: " ++ Maybe.withDefault "NA" model.queryConditions
+                    "Search " ++ commify data.numStudies ++ " studies"
 
         empty =
             [ Select.item [ value "" ] [ text "--Select--" ] ]
