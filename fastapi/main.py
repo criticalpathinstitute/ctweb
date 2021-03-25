@@ -182,6 +182,7 @@ def view_cart(study_ids: str) -> List[StudyCart]:
         from   study s
         where  s.study_id in ({})
     """.format(study_ids)
+
     # print(sql)
 
     def f(rec):
@@ -279,7 +280,10 @@ def search(text: Optional[str] = '',
     if text:
         where.append({
             'tables': [],
-            'where': ['s.all_text @@ to_tsquery({})'.format(make_bool(text))]
+            'where': [
+                "s.fulltext @@ to_tsquery('english', {})".format(
+                    make_bool(text))
+            ]
         })
 
     if phase_ids:
@@ -315,7 +319,7 @@ def search(text: Optional[str] = '',
         })
 
     if condition_names:
-        names = 'c.condition_name @@ to_tsquery({})'.format(
+        names = "c.condition_name @@ to_tsquery('english', {})".format(
             make_bool(condition_names))
 
         where.append({
@@ -327,7 +331,7 @@ def search(text: Optional[str] = '',
         })
 
     if sponsor_names:
-        names = 'sp.sponsor_name @@ to_tsquery({})'.format(
+        names = "sp.sponsor_name @@ to_tsquery('english', {})".format(
             make_bool(sponsor_names))
         where.append({
             'tables': ['study_to_sponsor s2p', 'sponsor sp'],
@@ -538,7 +542,7 @@ def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
 
     # clause = f"and c.condition_name @@ plainto_tsquery('{name}')"
 
-    clause = 'and c.condition_name @@ to_tsquery({})'.format(
+    clause = "and c.condition_name @@ to_tsquery('english', {})".format(
         make_bool(name)) if name else ''
 
     sql = f"""
@@ -591,6 +595,7 @@ def sponsors() -> List[Sponsor]:
         cur.close()
 
     return list(map(lambda r: Sponsor(**dict(r)), res))
+
 
 # --------------------------------------------------
 @app.get('/phases', response_model=List[Phase])
