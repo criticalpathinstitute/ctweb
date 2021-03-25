@@ -33,8 +33,6 @@ import Url.Builder
 type alias Model =
     { errorMessage : Maybe String
     , phases : WebData (List Phase)
-
-    -- , queryStringCondition : Maybe String
     , queryConditions : Maybe String
     , queryEnrollment : Maybe Int
     , querySelectedPhases : List Phase
@@ -112,8 +110,6 @@ initialModel : Session -> Model
 initialModel session =
     { errorMessage = Nothing
     , phases = RemoteData.NotAsked
-
-    -- , queryStringCondition = Nothing
     , queryConditions = Nothing
     , queryEnrollment = Nothing
     , querySelectedPhases = []
@@ -131,6 +127,9 @@ initialModel session =
 init : Session -> Maybe String -> ( Model, Cmd Msg )
 init session queryStringCondition =
     let
+        _ =
+            Debug.log "queryStringCondition" queryStringCondition
+
         model =
             initialModel session
     in
@@ -331,7 +330,7 @@ view model =
                     viewHttpErrorMessage httpError
 
                 RemoteData.Success data ->
-                    "Search " ++ commify data.numStudies ++ " studies"
+                    "Search " ++ commify data.numStudies ++ " studies: " ++ Maybe.withDefault "NA" model.queryConditions
 
         empty =
             [ Select.item [ value "" ] [ text "--Select--" ] ]

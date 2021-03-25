@@ -412,7 +412,10 @@ def summary():
     finally:
         cur.close()
 
-    return Summary(num_studies=res['num_studies'])
+    if res:
+        return Summary(num_studies=res['num_studies'])
+    else:
+        return []
 
 
 # --------------------------------------------------
