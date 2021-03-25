@@ -98,10 +98,6 @@ view model =
                     div [] [ text "Fetching conditions..." ]
 
                 RemoteData.Failure httpError ->
-                    let
-                        _ =
-                            Debug.log "The error" httpError
-                    in
                     div [] [ text (viewHttpErrorMessage httpError) ]
 
                 RemoteData.Success conditions ->

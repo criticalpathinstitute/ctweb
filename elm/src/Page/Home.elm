@@ -127,9 +127,6 @@ initialModel session =
 init : Session -> Maybe String -> ( Model, Cmd Msg )
 init session queryStringCondition =
     let
-        _ =
-            Debug.log "queryStringCondition" queryStringCondition
-
         model =
             initialModel session
     in
