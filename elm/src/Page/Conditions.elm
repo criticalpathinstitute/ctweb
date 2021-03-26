@@ -1,7 +1,9 @@
 module Page.Conditions exposing (Model, Msg, init, subscriptions, update, view)
 
+import Bool.Extra exposing (ifElse)
 import Bootstrap.Button as Button
 import Bootstrap.Form as Form
+import Bootstrap.Form.Checkbox as Checkbox
 import Bootstrap.Form.Input as Input
 import Bootstrap.Grid as Grid
 import Bootstrap.Grid.Col as Col
@@ -14,6 +16,7 @@ import Html.Events exposing (onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
+import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData, WebData)
 import Route
 import Session exposing (Session)
@@ -24,6 +27,7 @@ import Url.Builder
 type alias Model =
     { session : Session
     , conditionsFilter : Maybe String
+    , filterBool : Bool
     , conditions : WebData (List Condition)
     , tableState : Table.State
     }
@@ -40,6 +44,7 @@ type Msg
     = ConditionsResponse (WebData (List Condition))
     | Search
     | SetConditionsFilter String
+    | SetFilterBool Bool
     | SetTableState Table.State
 
 
@@ -47,6 +52,7 @@ init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
       , conditionsFilter = Nothing
+      , filterBool = False
       , conditions = RemoteData.NotAsked
       , tableState = Table.initialSort "conditionName"
       }
@@ -63,7 +69,7 @@ update msg model =
             )
 
         Search ->
-            ( model, doSearch model.conditionsFilter )
+            ( model, doSearch model )
 
         SetConditionsFilter text ->
             let
@@ -79,6 +85,9 @@ update msg model =
                             Just trimmed
             in
             ( { model | conditionsFilter = newFilter }, Cmd.none )
+
+        SetFilterBool toggle ->
+            ( { model | filterBool = toggle }, Cmd.none )
 
         SetTableState newState ->
             ( { model | tableState = newState }
@@ -117,25 +126,24 @@ view model =
                             ]
                         ]
 
-        hasFilter =
-            case model.conditionsFilter of
-                Just _ ->
-                    True
-
-                _ ->
-                    False
-
         form =
             Form.formInline []
                 [ Input.text
                     [ Input.attrs
                         [ placeholder "Search", onInput SetConditionsFilter ]
                     ]
+                , Checkbox.checkbox
+                    [ Checkbox.id "chkBool"
+                    , Checkbox.checked model.filterBool
+                    , Checkbox.onCheck SetFilterBool
+                    , Checkbox.attrs [ Spacing.mx1 ]
+                    ]
+                    "Boolean"
                 , Button.button
                     [ Button.primary
                     , Button.onClick Search
                     , Button.attrs [ Spacing.mx1 ]
-                    , Button.disabled (not hasFilter)
+                    , Button.disabled (isNothing model.conditionsFilter)
                     ]
                     [ text "Search" ]
                 ]
@@ -183,19 +191,14 @@ tableConfig =
 --    }
 
 
-doSearch : Maybe String -> Cmd Msg
-doSearch conditionsFilter =
+doSearch : Model -> Cmd Msg
+doSearch model =
     let
-        conditions =
-            case conditionsFilter of
-                Just c ->
-                    c
-
-                _ ->
-                    ""
-
         url =
-            apiServer ++ "/conditions?name=" ++ conditions
+            apiServer
+                ++ "/conditions?name="
+                ++ Maybe.withDefault "" model.conditionsFilter
+                ++ ifElse "&bool_search=1" "" model.filterBool
     in
     Http.get
         { url = url

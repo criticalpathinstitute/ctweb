@@ -34,11 +34,14 @@ type alias Model =
     { errorMessage : Maybe String
     , phases : WebData (List Phase)
     , queryConditions : Maybe String
+    , queryConditionsBool : Bool
     , queryEnrollment : Maybe Int
     , querySelectedPhases : List Phase
     , querySelectedStudyTypes : List StudyType
     , querySponsors : Maybe String
+    , querySponsorsBool : Bool
     , queryText : Maybe String
+    , queryTextBool : Bool
     , searchResults : WebData (List Study)
     , selectedStudies : List Study
     , session : Session
@@ -111,11 +114,14 @@ initialModel session =
     { errorMessage = Nothing
     , phases = RemoteData.NotAsked
     , queryConditions = Nothing
+    , queryConditionsBool = False
     , queryEnrollment = Nothing
     , querySelectedPhases = []
     , querySelectedStudyTypes = []
     , querySponsors = Nothing
+    , querySponsorsBool = False
     , queryText = Nothing
+    , queryTextBool = False
     , searchResults = RemoteData.NotAsked
     , selectedStudies = []
     , session = session

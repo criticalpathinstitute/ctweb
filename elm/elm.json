@@ -6,6 +6,7 @@
     "elm-version": "0.19.1",
     "dependencies": {
         "direct": {
+            "Chadtech/elm-bool-extra": "2.4.2",
             "NoRedInk/elm-json-decode-pipeline": "1.0.0",
             "billstclair/elm-sortable-table": "1.2.1",
             "cuducos/elm-format-number": "8.1.4",
@@ -20,6 +21,7 @@
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "elm-community/json-extra": "4.3.0",
+            "elm-community/maybe-extra": "5.2.0",
             "krisajenkins/remotedata": "6.0.1",
             "lattyware/elm-fontawesome": "5.0.0",
             "lukewestby/elm-http-builder": "8.0.0",

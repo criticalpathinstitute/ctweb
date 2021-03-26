@@ -281,7 +281,7 @@ def search(text: Optional[str] = '',
         where.append({
             'tables': [],
             'where': [
-                "s.fulltext @@ to_tsquery('english', {})".format(
+                "s.fulltext @@ to_tsquery('english', '{}')".format(
                     make_bool(text))
             ]
         })
@@ -319,7 +319,7 @@ def search(text: Optional[str] = '',
         })
 
     if condition_names:
-        names = "c.condition_name @@ to_tsquery('english', {})".format(
+        names = "c.condition_name @@ to_tsquery('english', '{}')".format(
             make_bool(condition_names))
 
         where.append({
@@ -331,7 +331,7 @@ def search(text: Optional[str] = '',
         })
 
     if sponsor_names:
-        names = "sp.sponsor_name @@ to_tsquery('english', {})".format(
+        names = "sp.sponsor_name @@ to_tsquery('english', '{}')".format(
             make_bool(sponsor_names))
         where.append({
             'tables': ['study_to_sponsor s2p', 'sponsor sp'],
@@ -397,7 +397,7 @@ def make_bool(s: str):
     s = re.sub('\s+and\s+', ' & ', s, re.I)
     s = re.sub('\s+or\s+', ' | ', s, re.I)
     s = re.sub('\s+not\s+', ' ! ', s, re.I)
-    return f"'{s}'"
+    return s
 
 
 # --------------------------------------------------
@@ -537,13 +537,17 @@ def study_types() -> List[StudyType]:
 
 # --------------------------------------------------
 @app.get('/conditions', response_model=List[ConditionDropDown])
-def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
+def conditions(name: Optional[str] = '',
+               bool_search: Optional[str] = '') -> List[ConditionDropDown]:
     """ Conditions/Num Studies """
 
     # clause = f"and c.condition_name @@ plainto_tsquery('{name}')"
 
-    clause = "and c.condition_name @@ to_tsquery('english', {})".format(
-        make_bool(name)) if name else ''
+    clause = ''
+    if name:
+        func = 'to_tsquery' if bool_search else 'plainto_tsquery'
+        name = make_bool(name) if bool_search else name
+        clause = f"and c.condition_name @@ {func}('english', '{name}')"
 
     sql = f"""
         select   c.condition_id, c.condition_name,
@@ -555,6 +559,8 @@ def conditions(name: Optional[str] = '') -> List[ConditionDropDown]:
         group by 1, 2
         order by 2
     """
+
+    print(sql)
 
     cur = get_cur()
     res = []
