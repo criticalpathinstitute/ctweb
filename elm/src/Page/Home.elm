@@ -1,5 +1,6 @@
 module Page.Home exposing (Model, Msg, init, subscriptions, update, view)
 
+import Bool.Extra exposing (ifElse)
 import Bootstrap.Badge as Badge
 import Bootstrap.Button as Button
 import Bootstrap.Form as Form
@@ -96,17 +97,20 @@ type Msg
     | AddStudyType String
     | CartMsg Cart.Msg
     | DoSearch
+    | PhasesResponse (WebData (List Phase))
     | RemovePhase Phase
     | RemoveStudyType StudyType
     | Reset
-    | PhasesResponse (WebData (List Phase))
-    | SummaryResponse (WebData Summary)
-    | StudyTypesResponse (WebData (List StudyType))
-    | SetConditions String
-    | SetSponsors String
-    | SetQueryText String
-    | SetEnrollment String
     | SearchResponse (WebData (List Study))
+    | SetConditions String
+    | SetQueryConditionsBool Bool
+    | SetEnrollment String
+    | SetQueryText String
+    | SetQueryTextBool Bool
+    | SetSponsors String
+    | SetQuerySponsorsBool Bool
+    | StudyTypesResponse (WebData (List StudyType))
+    | SummaryResponse (WebData Summary)
 
 
 initialModel : Session -> Model
@@ -301,13 +305,22 @@ update msg model =
             , Cmd.none
             )
 
+        SetQueryConditionsBool val ->
+            ( { model | queryConditionsBool = val }, Cmd.none )
+
         SetSponsors text ->
             ( { model | querySponsors = strToMaybe (String.toLower text) }
             , Cmd.none
             )
 
+        SetQuerySponsorsBool val ->
+            ( { model | querySponsorsBool = val }, Cmd.none )
+
         SetQueryText query ->
             ( { model | queryText = strToMaybe query }, Cmd.none )
+
+        SetQueryTextBool val ->
+            ( { model | queryTextBool = val }, Cmd.none )
 
         SetEnrollment enrollment ->
             ( { model | queryEnrollment = String.toInt enrollment }, Cmd.none )
@@ -432,6 +445,13 @@ view model =
                     [ Form.label [ for "text" ] [ text "Text:" ]
                     , Input.text
                         [ Input.attrs [ onInput SetQueryText ] ]
+                    , Checkbox.checkbox
+                        [ Checkbox.id "chkTextBool"
+                        , Checkbox.checked model.queryTextBool
+                        , Checkbox.onCheck SetQueryTextBool
+                        , Checkbox.attrs [ Spacing.mx1 ]
+                        ]
+                        "Boolean"
                     ]
                 , Form.group []
                     [ Form.label [ for "condition" ]
@@ -443,12 +463,26 @@ view model =
                                 Maybe.withDefault "" model.queryConditions
                             ]
                         ]
+                    , Checkbox.checkbox
+                        [ Checkbox.id "chkConditionsBool"
+                        , Checkbox.checked model.queryConditionsBool
+                        , Checkbox.onCheck SetQueryConditionsBool
+                        , Checkbox.attrs [ Spacing.mx1 ]
+                        ]
+                        "Boolean"
                     ]
                 , Form.group []
                     [ Form.label [ for "sponsor" ]
                         [ text "Sponsor:" ]
                     , Input.text
                         [ Input.attrs [ onInput SetSponsors ] ]
+                    , Checkbox.checkbox
+                        [ Checkbox.id "chkSponsorsBool"
+                        , Checkbox.checked model.querySponsorsBool
+                        , Checkbox.onCheck SetQuerySponsorsBool
+                        , Checkbox.attrs [ Spacing.mx1 ]
+                        ]
+                        "Boolean"
                     ]
                 , Form.group []
                     ([ Form.label [ for "phases" ]
@@ -584,7 +618,7 @@ view model =
                 [ text summary ]
             ]
         , Grid.row []
-            [ Grid.col [ Col.mdAuto ] [ searchForm ]
+            [ Grid.col [ Col.mdAuto, Col.md8 ] [ searchForm ]
             ]
         , Grid.row []
             [ Grid.col [] [ results ]
@@ -697,31 +731,44 @@ doSearch model =
                             )
                         )
 
+        queryTextBool =
+            Url.Builder.int "text_bool" (ifElse 1 0 model.queryTextBool)
+
+        queryConditionsBool =
+            Url.Builder.int "conditions_bool" (ifElse 1 0 model.queryConditionsBool)
+
+        querySponsorsBool =
+            Url.Builder.int "sponsors_bool" (ifElse 1 0 model.querySponsorsBool)
+
         queryParams =
+            List.filterMap builder
+                [ ( "text"
+                  , model.queryText
+                  )
+                , ( "phase_ids"
+                  , phaseIds
+                  )
+                , ( "study_type_ids"
+                  , studyTypeIds
+                  )
+                , ( "enrollment"
+                  , enrollment
+                  )
+                , ( "condition_names"
+                  , model.queryConditions
+                  )
+                , ( "sponsor_names"
+                  , model.querySponsors
+                  )
+                ]
+
+        params =
             Url.Builder.toQuery <|
-                List.filterMap builder
-                    [ ( "text"
-                      , model.queryText
-                      )
-                    , ( "phase_ids"
-                      , phaseIds
-                      )
-                    , ( "study_type_ids"
-                      , studyTypeIds
-                      )
-                    , ( "enrollment"
-                      , enrollment
-                      )
-                    , ( "condition_names"
-                      , model.queryConditions
-                      )
-                    , ( "sponsor_names"
-                      , model.querySponsors
-                      )
-                    ]
+                queryParams
+                    ++ [ queryTextBool, queryConditionsBool, querySponsorsBool ]
 
         searchUrl =
-            apiServer ++ "/search/" ++ queryParams
+            apiServer ++ "/search" ++ params
     in
     Http.get
         { url = searchUrl

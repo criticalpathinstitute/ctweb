@@ -153,6 +153,7 @@ view model =
             [ Grid.col []
                 [ form
                 , viewConditions
+                , text <| Maybe.withDefault "NA" model.conditionsFilter
                 ]
             ]
         ]
@@ -194,11 +195,19 @@ tableConfig =
 doSearch : Model -> Cmd Msg
 doSearch model =
     let
+        conditions =
+            Url.Builder.string "name" <|
+                Maybe.withDefault "" model.conditionsFilter
+
+        boolSearch =
+            Url.Builder.int "bool_search" <|
+                ifElse 1 0 model.filterBool
+
+        params =
+            Url.Builder.toQuery [ conditions, boolSearch ]
+
         url =
-            apiServer
-                ++ "/conditions?name="
-                ++ Maybe.withDefault "" model.conditionsFilter
-                ++ ifElse "&bool_search=1" "" model.filterBool
+            apiServer ++ "/conditions" ++ params
     in
     Http.get
         { url = url

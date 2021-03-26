@@ -263,13 +263,16 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
 # --------------------------------------------------
 @app.get('/search', response_model=List[StudySearchResult])
 def search(text: Optional[str] = '',
+           text_bool: Optional[int] = 0,
+           condition_names: Optional[str] = '',
+           conditions_bool: Optional[int] = 0,
+           sponsor_names: Optional[str] = '',
+           sponsors_bool: Optional[int] = 0,
            enrollment: Optional[str] = '',
            overall_status_id: Optional[int] = 0,
            last_known_status_id: Optional[int] = 0,
            condition_ids: Optional[str] = '',
            sponsor_ids: Optional[str] = '',
-           condition_names: Optional[str] = '',
-           sponsor_names: Optional[str] = '',
            study_type_ids: Optional[str] = '',
            phase_ids: Optional[str] = '') -> List[StudySearchResult]:
     """ Search """
@@ -280,10 +283,7 @@ def search(text: Optional[str] = '',
     if text:
         where.append({
             'tables': [],
-            'where': [
-                "s.fulltext @@ to_tsquery('english', '{}')".format(
-                    make_bool(text))
-            ]
+            'where': ['s.fulltext @@ {}'.format(tsquery(text, text_bool))]
         })
 
     if phase_ids:
@@ -319,8 +319,8 @@ def search(text: Optional[str] = '',
         })
 
     if condition_names:
-        names = "c.condition_name @@ to_tsquery('english', '{}')".format(
-            make_bool(condition_names))
+        names = 'c.condition_name @@ {}'.format(
+            tsquery(condition_names, conditions_bool))
 
         where.append({
             'tables': ['study_to_condition s2c', 'condition c'],
@@ -331,8 +331,8 @@ def search(text: Optional[str] = '',
         })
 
     if sponsor_names:
-        names = "sp.sponsor_name @@ to_tsquery('english', '{}')".format(
-            make_bool(sponsor_names))
+        names = 'sp.sponsor_name @@ {}'.format(
+            tsquery(sponsor_names, sponsors_bool))
         where.append({
             'tables': ['study_to_sponsor s2p', 'sponsor sp'],
             'where':
@@ -390,7 +390,17 @@ def search(text: Optional[str] = '',
 
 
 # --------------------------------------------------
-def make_bool(s: str):
+def tsquery(query: str, bool_search: int) -> str:
+    """ Make into query """
+
+    if bool_search:
+        query = make_bool(query)
+
+    return f"{'' if bool_search else 'plain'}to_tsquery('english', '{query}')"
+
+
+# --------------------------------------------------
+def make_bool(s: str) -> str:
     """ Turn and or to & | """
 
     s = re.sub('[*]', '', s)
@@ -402,7 +412,7 @@ def make_bool(s: str):
 
 # --------------------------------------------------
 @app.get('/summary', response_model=Summary)
-@lru_cache()
+# @lru_cache()
 def summary():
     """ DB summary stats """
 
@@ -537,17 +547,12 @@ def study_types() -> List[StudyType]:
 
 # --------------------------------------------------
 @app.get('/conditions', response_model=List[ConditionDropDown])
-def conditions(name: Optional[str] = '',
-               bool_search: Optional[str] = '') -> List[ConditionDropDown]:
+def conditions(name: str,
+               bool_search: Optional[int] = 0) -> List[ConditionDropDown]:
     """ Conditions/Num Studies """
 
-    # clause = f"and c.condition_name @@ plainto_tsquery('{name}')"
-
-    clause = ''
-    if name:
-        func = 'to_tsquery' if bool_search else 'plainto_tsquery'
-        name = make_bool(name) if bool_search else name
-        clause = f"and c.condition_name @@ {func}('english', '{name}')"
+    clause = 'and c.condition_name @@ {}'.format(
+        tsquery(name, bool_search))
 
     sql = f"""
         select   c.condition_id, c.condition_name,
@@ -557,14 +562,14 @@ def conditions(name: Optional[str] = '',
         and      s2c.study_id=s.study_id
         {clause}
         group by 1, 2
-        order by 2
+        order by 3 desc
     """
 
-    print(sql)
+    # print(sql)
 
-    cur = get_cur()
     res = []
     try:
+        cur = get_cur()
         cur.execute(sql)
         res = cur.fetchall()
     except Exception as e:
