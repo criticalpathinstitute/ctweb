@@ -8,6 +8,7 @@ import Bootstrap.Tab as Tab
 import Bootstrap.Table exposing (table, tbody, td, th, thead, tr)
 import Bootstrap.Utilities.Spacing as Spacing
 import Cart exposing (Cart)
+import Common exposing (commify, viewHttpErrorMessage)
 import Config exposing (apiServer)
 import File.Download as Download
 import Html exposing (Html, a, b, br, div, h1, img, text)
@@ -54,27 +55,26 @@ init session =
     ( { session = session
       , studies = studies
       , tabState = Tab.initialState
-      , downloadFields = initialDownloadFields
+      , downloadFields = Set.fromList allDownloadFields
       }
     , cmds
     )
 
 
-initialDownloadFields : Set String
-initialDownloadFields =
-    Set.fromList
-        [ "nct_id"
-        , "official_title"
-        , "brief_title"
-        , "overall_status"
-        , "last_known_status"
-        , "brief_summary"
-        , "detailed_description"
-        , "keywords"
-        , "enrollment"
-        , "start_date"
-        , "completion_date"
-        ]
+allDownloadFields : List String
+allDownloadFields =
+    [ "nct_id"
+    , "official_title"
+    , "brief_title"
+    , "overall_status"
+    , "last_known_status"
+    , "brief_summary"
+    , "detailed_description"
+    , "keywords"
+    , "enrollment"
+    , "start_date"
+    , "completion_date"
+    ]
 
 
 toSession : Model -> Session
@@ -132,15 +132,16 @@ update msg model =
                     String.join "," <|
                         List.map String.fromInt idList
 
-                fields =
-                    String.join "," <| Set.toList model.downloadFields
+                selectedFields =
+                    List.filter (\f -> Set.member f model.downloadFields)
+                        allDownloadFields
 
                 url =
                     apiServer
                         ++ "/download?study_ids="
                         ++ studyIds
                         ++ "&fields="
-                        ++ fields
+                        ++ String.join "," selectedFields
             in
             ( model, Download.url url )
 
@@ -164,7 +165,9 @@ update msg model =
         SetFldOfficialTitle toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "official_title" model.downloadFields
+                    toggleDownloadField toggle
+                        "official_title"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -172,7 +175,9 @@ update msg model =
         SetFldBriefTitle toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "brief_title" model.downloadFields
+                    toggleDownloadField toggle
+                        "brief_title"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -180,7 +185,9 @@ update msg model =
         SetFldOverallStatus toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "overall_status" model.downloadFields
+                    toggleDownloadField toggle
+                        "overall_status"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -188,7 +195,9 @@ update msg model =
         SetFldLastKnownStatus toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "last_known_status" model.downloadFields
+                    toggleDownloadField toggle
+                        "last_known_status"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -196,7 +205,9 @@ update msg model =
         SetFldBriefSummary toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "brief_summary" model.downloadFields
+                    toggleDownloadField toggle
+                        "brief_summary"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -204,7 +215,9 @@ update msg model =
         SetFldDetailedDescription toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "detailed_description" model.downloadFields
+                    toggleDownloadField toggle
+                        "detailed_description"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -212,7 +225,9 @@ update msg model =
         SetFldKeywords toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "keywords" model.downloadFields
+                    toggleDownloadField toggle
+                        "keywords"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -220,7 +235,9 @@ update msg model =
         SetFldEnrollment toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "enrollment" model.downloadFields
+                    toggleDownloadField toggle
+                        "enrollment"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -228,7 +245,9 @@ update msg model =
         SetFldStartDate toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "start_date" model.downloadFields
+                    toggleDownloadField toggle
+                        "start_date"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -236,7 +255,9 @@ update msg model =
         SetFldCompletionDate toggle ->
             ( { model
                 | downloadFields =
-                    toggleDownloadField toggle "completion_date" model.downloadFields
+                    toggleDownloadField toggle
+                        "completion_date"
+                        model.downloadFields
               }
             , Cmd.none
             )
@@ -257,7 +278,7 @@ update msg model =
             )
 
         SelectAllDownloadFields ->
-            ( { model | downloadFields = initialDownloadFields }
+            ( { model | downloadFields = Set.fromList allDownloadFields }
             , Cmd.none
             )
 
@@ -311,8 +332,11 @@ view model =
                 RemoteData.Loading ->
                     div [] [ img [ src "/assets/images/loading.gif" ] [] ]
 
-                _ ->
-                    div [] [ text "Nothing to show" ]
+                RemoteData.NotAsked ->
+                    div [] [ text "Not asked" ]
+
+                RemoteData.Failure httpError ->
+                    div [] [ text <| viewHttpErrorMessage httpError ]
 
         cartSize =
             Cart.size cart
@@ -452,7 +476,8 @@ downloadConfig model =
             "Start Date"
         , Checkbox.checkbox
             [ Checkbox.id "chbCompletionDate"
-            , Checkbox.checked (Set.member "completion_date" model.downloadFields)
+            , Checkbox.checked
+                (Set.member "completion_date" model.downloadFields)
             , Checkbox.onCheck SetFldCompletionDate
             ]
             "Completion Date"
@@ -480,52 +505,3 @@ decoderStudy =
         |> Json.Decode.Pipeline.required "study_id" int
         |> Json.Decode.Pipeline.required "nct_id" string
         |> Json.Decode.Pipeline.required "title" string
-
-
-
---view : Model -> Html Msg
---view model =
---    let
---        isLoggedIn =
---            False
---        --model.userId /= Nothing
---        cart =
---            Session.getCart model.session
---        count =
---            Cart.size cart
---        isEmpty =
---            count == 0
---    in
---    Page.viewRemoteData model.files
---        (\files ->
---            div [ class "container" ]
---                [ div [ class "pb-2 mt-5 mb-2" ]
---                    [ h1 [ class "font-weight-bold align-middle d-inline" ]
---                        [ span [ style "color" "dimgray" ] [ text "Cart" ]
---                        ]
---                    , span [ class "badge badge-pill badge-primary ml-2" ]
---                        [ if count == 0 then
---                            text ""
---                          else
---                            text (String.fromInt count)
---                        ]
---                    , button [ class "btn btn-primary mt-2 float-right", onClick EmptyCart, disabled isEmpty ]
---                        [ Icon.ban, text " Empty" ]
---                    ]
---                , viewCart cart files
---                ]
---        )
---viewCartControls :
---    Bool
---    -> Bool
---    -> Html Msg -- -> Maybe Int -> List SampleGroup -> Html Msg
---viewCartControls isEmpty isLoggedIn =
---    -- selectedCartId sampleGroups =
---    button [ class "btn btn-primary", onClick EmptyCart, disabled isEmpty ]
---        [ Icon.ban, text " Empty" ]
---viewCart : Cart -> List File -> Html Msg
---viewCart cart files =
---    if Cart.size cart == 0 then
---        div [ class "alert alert-secondary" ] [ text "The cart is empty" ]
---    else
---        Cart.view cart files Cart.Editable |> Html.map CartMsg

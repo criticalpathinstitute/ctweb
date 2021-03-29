@@ -43,7 +43,8 @@ type alias Model =
     , querySponsorsBool : Bool
     , queryText : Maybe String
     , queryTextBool : Bool
-    , searchResults : WebData (List Study)
+    , recordLimit : Int
+    , searchResults : WebData SearchResults
     , selectedStudies : List Study
     , session : Session
     , studyTypes : WebData (List StudyType)
@@ -61,7 +62,6 @@ type alias Condition =
 type alias Phase =
     { phaseId : Int
     , phaseName : String
-    , numStudies : Int
     }
 
 
@@ -75,7 +75,6 @@ type alias Sponsor =
 type alias StudyType =
     { studyTypeId : Int
     , studyTypeName : String
-    , numStudies : Int
     }
 
 
@@ -92,6 +91,12 @@ type alias Study =
     }
 
 
+type alias SearchResults =
+    { count : Int
+    , records : List Study
+    }
+
+
 type Msg
     = AddPhase String
     | AddStudyType String
@@ -101,16 +106,21 @@ type Msg
     | RemovePhase Phase
     | RemoveStudyType StudyType
     | Reset
-    | SearchResponse (WebData (List Study))
+    | SearchResponse (WebData SearchResults)
     | SetConditions String
-    | SetQueryConditionsBool Bool
     | SetEnrollment String
+    | SetQueryConditionsBool Bool
+    | SetQuerySponsorsBool Bool
     | SetQueryText String
     | SetQueryTextBool Bool
+    | SetRecordLimit String
     | SetSponsors String
-    | SetQuerySponsorsBool Bool
     | StudyTypesResponse (WebData (List StudyType))
     | SummaryResponse (WebData Summary)
+
+
+defaultRecordLimit =
+    100
 
 
 initialModel : Session -> Model
@@ -126,6 +136,7 @@ initialModel session =
     , querySponsorsBool = False
     , queryText = Nothing
     , queryTextBool = False
+    , recordLimit = defaultRecordLimit
     , searchResults = RemoteData.NotAsked
     , selectedStudies = []
     , session = session
@@ -322,6 +333,15 @@ update msg model =
         SetQueryTextBool val ->
             ( { model | queryTextBool = val }, Cmd.none )
 
+        SetRecordLimit val ->
+            ( { model
+                | recordLimit =
+                    Maybe.withDefault defaultRecordLimit
+                        (String.toInt val)
+              }
+            , Cmd.none
+            )
+
         SetEnrollment enrollment ->
             ( { model | queryEnrollment = String.toInt enrollment }, Cmd.none )
 
@@ -368,11 +388,7 @@ view model =
                 mkSelectItem phase =
                     Select.item
                         [ value <| String.fromInt phase.phaseId ]
-                        [ text <|
-                            phase.phaseName
-                                ++ " ("
-                                ++ String.fromInt phase.numStudies
-                                ++ ")"
+                        [ text phase.phaseName
                         ]
             in
             case model.phases of
@@ -402,12 +418,7 @@ view model =
                 mkSelectItem studyType =
                     Select.item
                         [ value <| String.fromInt studyType.studyTypeId ]
-                        [ text <|
-                            studyType.studyTypeName
-                                ++ " ("
-                                ++ String.fromInt studyType.numStudies
-                                ++ ")"
-                        ]
+                        [ text studyType.studyTypeName ]
             in
             case model.studyTypes of
                 RemoteData.Success data ->
@@ -441,84 +452,110 @@ view model =
 
         searchForm =
             Form.form [ onSubmit DoSearch ]
-                [ Form.group []
-                    [ Form.label [ for "text" ] [ text "Text:" ]
-                    , Input.text
-                        [ Input.attrs [ onInput SetQueryText ] ]
-                    , Checkbox.checkbox
-                        [ Checkbox.id "chkTextBool"
-                        , Checkbox.checked model.queryTextBool
-                        , Checkbox.onCheck SetQueryTextBool
-                        , Checkbox.attrs [ Spacing.mx1 ]
+                [ Form.row []
+                    [ Form.colLabel [ Col.sm2 ]
+                        [ text "Full Text" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs [ onInput SetQueryText ] ]
                         ]
-                        "Boolean"
+                    , Form.col [ Col.sm2 ]
+                        [ Checkbox.checkbox
+                            [ Checkbox.id "chkTextBool"
+                            , Checkbox.checked model.queryTextBool
+                            , Checkbox.onCheck SetQueryTextBool
+                            ]
+                            "Boolean"
+                        ]
                     ]
-                , Form.group []
-                    [ Form.label [ for "condition" ]
-                        [ text "Condition:" ]
-                    , Input.text
-                        [ Input.attrs
-                            [ onInput SetConditions
-                            , value <|
-                                Maybe.withDefault "" model.queryConditions
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ]
+                        [ text "Conditions" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetConditions
+                                , value <|
+                                    Maybe.withDefault "" model.queryConditions
+                                ]
                             ]
                         ]
-                    , Checkbox.checkbox
-                        [ Checkbox.id "chkConditionsBool"
-                        , Checkbox.checked model.queryConditionsBool
-                        , Checkbox.onCheck SetQueryConditionsBool
-                        , Checkbox.attrs [ Spacing.mx1 ]
+                    , Form.col [ Col.sm2 ]
+                        [ Checkbox.checkbox
+                            [ Checkbox.id "chkConditionsBool"
+                            , Checkbox.checked model.queryConditionsBool
+                            , Checkbox.onCheck SetQueryConditionsBool
+                            ]
+                            "Boolean"
                         ]
-                        "Boolean"
                     ]
-                , Form.group []
-                    [ Form.label [ for "sponsor" ]
-                        [ text "Sponsor:" ]
-                    , Input.text
-                        [ Input.attrs [ onInput SetSponsors ] ]
-                    , Checkbox.checkbox
-                        [ Checkbox.id "chkSponsorsBool"
-                        , Checkbox.checked model.querySponsorsBool
-                        , Checkbox.onCheck SetQuerySponsorsBool
-                        , Checkbox.attrs [ Spacing.mx1 ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ]
+                        [ text "Sponsors" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs [ onInput SetSponsors ] ]
                         ]
-                        "Boolean"
+                    , Form.col [ Col.sm2 ]
+                        [ Checkbox.checkbox
+                            [ Checkbox.id "chkSponsorsBool"
+                            , Checkbox.checked model.querySponsorsBool
+                            , Checkbox.onCheck SetQuerySponsorsBool
+                            ]
+                            "Boolean"
+                        ]
                     ]
-                , Form.group []
-                    ([ Form.label [ for "phases" ]
-                        [ text "Phase:" ]
-                     , mkPhasesSelect
-                     ]
-                        ++ viewSelectedPhases
-                    )
-                , Form.group []
-                    ([ Form.label [ for "study_types" ]
-                        [ text "Study Type:" ]
-                     , mkStudyTypesSelect
-                     ]
-                        ++ viewSelectedStudyTypes
-                    )
-                , Form.group []
-                    [ Form.label [ for "enrollment" ]
-                        [ text "Enrollment:" ]
-                    , Input.text
-                        [ Input.attrs [ onInput SetEnrollment ] ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Phases" ]
+                    , Form.col [ Col.sm5 ]
+                        [ mkPhasesSelect
+                        , div [] viewSelectedPhases
+                        ]
                     ]
-                , Button.button
-                    [ Button.primary
-                    , Button.onClick DoSearch
-                    , Button.attrs [ Spacing.mx1 ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Study Type" ]
+                    , Form.col [ Col.sm5 ]
+                        [ mkStudyTypesSelect
+                        , div [] viewSelectedStudyTypes
+                        ]
                     ]
-                    [ text "Submit" ]
-                , Button.button
-                    [ Button.secondary
-                    , Button.onClick Reset
-                    , Button.attrs [ Spacing.mx1 ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Enrollment" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs [ onInput SetEnrollment ] ]
+                        ]
                     ]
-                    [ text "Clear" ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Limit" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetRecordLimit
+                                , value (String.fromInt model.recordLimit)
+                                ]
+                            ]
+                        ]
+                    ]
+                , Form.row []
+                    [ Form.col [ Col.offsetSm2, Col.sm5 ]
+                        [ Button.button
+                            [ Button.primary
+                            , Button.onClick DoSearch
+                            , Button.attrs [ Spacing.mx1 ]
+                            ]
+                            [ text "Submit" ]
+                        , Button.button
+                            [ Button.secondary
+                            , Button.onClick Reset
+                            , Button.attrs [ Spacing.mx1 ]
+                            ]
+                            [ text "Clear" ]
+                        ]
+                    ]
                 ]
 
-        results =
+        viewSearchResults =
             case model.searchResults of
                 RemoteData.NotAsked ->
                     div [] [ text "" ]
@@ -529,16 +566,17 @@ view model =
                 RemoteData.Failure httpError ->
                     div [] [ text (viewHttpErrorMessage httpError) ]
 
-                RemoteData.Success studies ->
+                RemoteData.Success data ->
                     let
                         cart =
                             Session.getCart model.session
 
-                        numStudies =
-                            List.length studies
-
                         title =
-                            "Search Results (" ++ commify numStudies ++ ") "
+                            "Showing "
+                                ++ commify (List.length data.records)
+                                ++ " of "
+                                ++ commify data.count
+                                ++ " found"
 
                         mkRow study =
                             tr []
@@ -577,14 +615,14 @@ view model =
                                     tbody []
                                         (List.map
                                             mkRow
-                                            studies
+                                            data.records
                                         )
                                 }
 
                         resultsDiv =
                             let
                                 idList =
-                                    List.map (\s -> s.studyId) studies
+                                    List.map (\s -> s.studyId) data.records
 
                                 cartButton =
                                     div []
@@ -593,7 +631,7 @@ view model =
                                         ]
 
                                 body =
-                                    case numStudies of
+                                    case data.count of
                                         0 ->
                                             div [] []
 
@@ -612,18 +650,31 @@ view model =
             List.length model.selectedStudies
     in
     Grid.container []
+        --[ text summary
+        --, searchForm
+        --]
         [ Grid.row [ Row.centerMd ]
-            [ Grid.col
-                [ Col.xs, Col.md8 ]
-                [ text summary ]
-            ]
+            [ Grid.col [ Col.md10 ] [ text summary ] ]
         , Grid.row []
-            [ Grid.col [ Col.mdAuto, Col.md8 ] [ searchForm ]
-            ]
+            [ Grid.col [] [ searchForm ] ]
         , Grid.row []
-            [ Grid.col [] [ results ]
-            ]
+            [ Grid.col [] [ viewSearchResults ] ]
         ]
+
+
+
+--[ Grid.row [ Row.centerMd ]
+--    [ Grid.col
+--        [ Col.xs, Col.md8 ]
+--        [ text summary ]
+--    ]
+--, Grid.row []
+--    [ Grid.col [] [ searchForm ]
+--    ]
+--, Grid.row []
+--    [ Grid.col [] [ results ]
+--    ]
+--]
 
 
 filteredConditions : List Condition -> Maybe String -> List Condition
@@ -735,10 +786,15 @@ doSearch model =
             Url.Builder.int "text_bool" (ifElse 1 0 model.queryTextBool)
 
         queryConditionsBool =
-            Url.Builder.int "conditions_bool" (ifElse 1 0 model.queryConditionsBool)
+            Url.Builder.int "conditions_bool"
+                (ifElse 1 0 model.queryConditionsBool)
 
         querySponsorsBool =
-            Url.Builder.int "sponsors_bool" (ifElse 1 0 model.querySponsorsBool)
+            Url.Builder.int "sponsors_bool"
+                (ifElse 1 0 model.querySponsorsBool)
+
+        recordLimit =
+            Url.Builder.int "limit" model.recordLimit
 
         queryParams =
             List.filterMap builder
@@ -765,7 +821,11 @@ doSearch model =
         params =
             Url.Builder.toQuery <|
                 queryParams
-                    ++ [ queryTextBool, queryConditionsBool, querySponsorsBool ]
+                    ++ [ queryTextBool
+                       , queryConditionsBool
+                       , querySponsorsBool
+                       , recordLimit
+                       ]
 
         searchUrl =
             apiServer ++ "/search" ++ params
@@ -775,7 +835,7 @@ doSearch model =
         , expect =
             Http.expectJson
                 (RemoteData.fromResult >> SearchResponse)
-                (Json.Decode.list decoderStudy)
+                decoderSearchResults
         }
 
 
@@ -812,13 +872,20 @@ decoderPhase =
     Json.Decode.succeed Phase
         |> Json.Decode.Pipeline.required "phase_id" int
         |> Json.Decode.Pipeline.required "phase_name" string
-        |> Json.Decode.Pipeline.required "num_studies" int
 
 
 decoderSummary : Decoder Summary
 decoderSummary =
     Json.Decode.succeed Summary
         |> Json.Decode.Pipeline.required "num_studies" int
+
+
+decoderSearchResults : Decoder SearchResults
+decoderSearchResults =
+    Json.Decode.succeed SearchResults
+        |> Json.Decode.Pipeline.required "count" int
+        |> Json.Decode.Pipeline.required "records"
+            (Json.Decode.list decoderStudy)
 
 
 decoderStudy : Decoder Study
@@ -843,7 +910,6 @@ decoderStudyType =
     Json.Decode.succeed StudyType
         |> Json.Decode.Pipeline.required "study_type_id" int
         |> Json.Decode.Pipeline.required "study_type_name" string
-        |> Json.Decode.Pipeline.required "num_studies" int
 
 
 subscriptions : Model -> Sub Msg

@@ -54,7 +54,6 @@ class ConditionDropDown(BaseModel):
 class Phase(BaseModel):
     phase_id: int
     phase_name: str
-    num_studies: int
 
 
 class StudyCart(BaseModel):
@@ -146,7 +145,6 @@ class StudyDetail(BaseModel):
 class StudyType(BaseModel):
     study_type_id: int
     study_type_name: str
-    num_studies: int
 
 
 class Sponsor(BaseModel):
@@ -157,6 +155,11 @@ class Sponsor(BaseModel):
 
 class Summary(BaseModel):
     num_studies: int
+
+
+class SearchResults(BaseModel):
+    count: int
+    records: List[StudySearchResult]
 
 
 dsn_tmpl = 'dbname=ct user={} password={} host={}'
@@ -177,18 +180,19 @@ def get_cur():
 def view_cart(study_ids: str) -> List[StudyCart]:
     """ View studies in cart """
 
+    ids = list(filter(str.isdigit, re.split(r'\s*,\s*', study_ids)))
     sql = """
-        select s.study_id, s.nct_id, s.official_title
+        select s.study_id, s.nct_id, s.brief_title
         from   study s
         where  s.study_id in ({})
-    """.format(study_ids)
+    """.format(', '.join(ids))
 
     # print(sql)
 
     def f(rec):
         return StudyCart(study_id=rec['study_id'],
                          nct_id=rec['nct_id'],
-                         title=rec['official_title'])
+                         title=rec['brief_title'])
 
     res = []
     try:
@@ -261,7 +265,7 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
 
 
 # --------------------------------------------------
-@app.get('/search', response_model=List[StudySearchResult])
+@app.get('/search', response_model=SearchResults)
 def search(text: Optional[str] = '',
            text_bool: Optional[int] = 0,
            condition_names: Optional[str] = '',
@@ -274,7 +278,8 @@ def search(text: Optional[str] = '',
            condition_ids: Optional[str] = '',
            sponsor_ids: Optional[str] = '',
            study_type_ids: Optional[str] = '',
-           phase_ids: Optional[str] = '') -> List[StudySearchResult]:
+           phase_ids: Optional[str] = '',
+           limit: Optional[int] = 0) -> List[StudySearchResult]:
     """ Search """
 
     flds = ['study_id', 'nct_id', 'official_title']
@@ -364,18 +369,29 @@ def search(text: Optional[str] = '',
         chain.from_iterable(map(lambda x: x['tables'], where)))
     where = '\nand '.join(chain.from_iterable(map(lambda x: x['where'],
                                                   where)))
-    sql = """
-        select s.study_id, s.nct_id, s.official_title
+
+    count_sql = """
+        select count(s.study_id)
         from   {}
         where  {}
     """.format(', '.join(table_names), where)
 
-    # print(sql)
+    select_sql = """
+        select s.study_id, s.nct_id, s.official_title
+        from   {}
+        where  {}
+        limit {}
+    """.format(', '.join(table_names), where, limit or 'ALL')
 
     res = []
+    count = 0
     try:
         cur = get_cur()
-        cur.execute(sql)
+        cur.execute(count_sql)
+        if counts := cur.fetchone():
+            count = counts[0]
+
+        cur.execute(select_sql)
         res = cur.fetchall()
         cur.close()
     except:
@@ -386,7 +402,10 @@ def search(text: Optional[str] = '',
                                  nct_id=rec['nct_id'],
                                  title=rec['official_title'] or 'NA')
 
-    return list(map(f, res))
+    return SearchResults(
+        count=count,
+        records=list(map(f, res))
+    )
 
 
 # --------------------------------------------------
@@ -524,11 +543,8 @@ def study_types() -> List[StudyType]:
     """ Study Types """
 
     sql = f"""
-        select   t.study_type_id, t.study_type_name,
-                 count(s.study_id) as num_studies
-        from     study s, study_type t
-        where    s.study_type_id=t.study_type_id
-        group by 1, 2
+        select   t.study_type_id, t.study_type_name
+        from     study_type t
         order by 2
     """
 
@@ -610,15 +626,12 @@ def sponsors() -> List[Sponsor]:
 
 # --------------------------------------------------
 @app.get('/phases', response_model=List[Phase])
-@lru_cache()
 def phases() -> List[Phase]:
     """ Phases """
 
     sql = """
-        select   p.phase_id, p.phase_name, count(s.study_id) as num_studies
-        from     phase p, study s
-        where    p.phase_id=s.phase_id
-        group by 1, 2
+        select   p.phase_id, p.phase_name
+        from     phase p
         order by 2
     """
 
