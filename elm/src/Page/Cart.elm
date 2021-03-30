@@ -74,6 +74,11 @@ allDownloadFields =
     , "enrollment"
     , "start_date"
     , "completion_date"
+    , "sponsors"
+    , "conditions"
+    , "interventions"
+    , "outcomes"
+    , "study_docs"
     ]
 
 
@@ -99,6 +104,11 @@ type Msg
     | SetFldEnrollment Bool
     | SetFldStartDate Bool
     | SetFldCompletionDate Bool
+    | SetFldConditions Bool
+    | SetFldSponsors Bool
+    | SetFldInterventions Bool
+    | SetFldOutcomes Bool
+    | SetFldStudyDocs Bool
     | SelectAllDownloadFields
     | UnselectAllDownloadFields
 
@@ -257,6 +267,56 @@ update msg model =
                 | downloadFields =
                     toggleDownloadField toggle
                         "completion_date"
+                        model.downloadFields
+              }
+            , Cmd.none
+            )
+
+        SetFldConditions toggle ->
+            ( { model
+                | downloadFields =
+                    toggleDownloadField toggle
+                        "conditions"
+                        model.downloadFields
+              }
+            , Cmd.none
+            )
+
+        SetFldSponsors toggle ->
+            ( { model
+                | downloadFields =
+                    toggleDownloadField toggle
+                        "sponsors"
+                        model.downloadFields
+              }
+            , Cmd.none
+            )
+
+        SetFldInterventions toggle ->
+            ( { model
+                | downloadFields =
+                    toggleDownloadField toggle
+                        "interventions"
+                        model.downloadFields
+              }
+            , Cmd.none
+            )
+
+        SetFldOutcomes toggle ->
+            ( { model
+                | downloadFields =
+                    toggleDownloadField toggle
+                        "outcomes"
+                        model.downloadFields
+              }
+            , Cmd.none
+            )
+
+        SetFldStudyDocs toggle ->
+            ( { model
+                | downloadFields =
+                    toggleDownloadField toggle
+                        "study_docs"
                         model.downloadFields
               }
             , Cmd.none
@@ -481,6 +541,41 @@ downloadConfig model =
             , Checkbox.onCheck SetFldCompletionDate
             ]
             "Completion Date"
+        , Checkbox.checkbox
+            [ Checkbox.id "chbSponsors"
+            , Checkbox.checked
+                (Set.member "sponsors" model.downloadFields)
+            , Checkbox.onCheck SetFldSponsors
+            ]
+            "Sponsors"
+        , Checkbox.checkbox
+            [ Checkbox.id "chbConditions"
+            , Checkbox.checked
+                (Set.member "conditions" model.downloadFields)
+            , Checkbox.onCheck SetFldConditions
+            ]
+            "Conditions"
+        , Checkbox.checkbox
+            [ Checkbox.id "chbInterventions"
+            , Checkbox.checked
+                (Set.member "interventions" model.downloadFields)
+            , Checkbox.onCheck SetFldInterventions
+            ]
+            "Interventions"
+        , Checkbox.checkbox
+            [ Checkbox.id "chbOutcomes"
+            , Checkbox.checked
+                (Set.member "outcomes" model.downloadFields)
+            , Checkbox.onCheck SetFldOutcomes
+            ]
+            "Outcomes"
+        , Checkbox.checkbox
+            [ Checkbox.id "chbStudyDocs"
+            , Checkbox.checked
+                (Set.member "study_docs" model.downloadFields)
+            , Checkbox.onCheck SetFldStudyDocs
+            ]
+            "Study Docs"
         ]
 
 

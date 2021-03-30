@@ -118,7 +118,7 @@ view model =
                         [ h1 []
                             [ text <|
                                 "Conditions ("
-                                    ++ String.fromInt numConditions
+                                    ++ commify numConditions
                                     ++ ")"
                             ]
                         , div []
@@ -153,7 +153,8 @@ view model =
             [ Grid.col []
                 [ form
                 , viewConditions
-                , text <| Maybe.withDefault "NA" model.conditionsFilter
+
+                -- , text <| Maybe.withDefault "" model.conditionsFilter
                 ]
             ]
         ]

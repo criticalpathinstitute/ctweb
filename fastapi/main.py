@@ -219,11 +219,13 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
     default_fields = [
         'nct_id', 'official_title', 'brief_title', 'brief_summary',
         'detailed_description', 'keywords', 'enrollment', 'start_date',
-        'completion_date', 'last_known_status', 'overall_status'
+        'completion_date', 'last_known_status', 'overall_status', 'conditions',
+        'interventions', 'outcomes', 'sponsors', 'study_docs'
     ]
 
     sql = """
-        select s.nct_id, s.official_title, s.brief_title, s.brief_summary,
+        select s.study_id, s.nct_id, s.official_title,
+               s.brief_title, s.brief_summary,
                s.detailed_description, s.keywords, s.enrollment, s.start_date,
                s.completion_date, st1.status_name as last_known_status,
                st2.status_name as overall_status
@@ -255,6 +257,23 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
         writer = csv.DictWriter(stream, fieldnames=flds, delimiter=',')
         writer.writeheader()
         for row in map(dict, res):
+            if 'conditions' in flds:
+                row['conditions'] = ';'.join(
+                    get_study_conditions(row['study_id']))
+
+            if 'interventions' in flds:
+                row['interventions'] = ';'.join(
+                    get_study_interventions(row['study_id']))
+
+            if 'sponsors' in flds:
+                row['sponsors'] = ';'.join(get_study_sponsors(row['study_id']))
+
+            if 'outcomes' in flds:
+                row['outcomes'] = ';'.join(get_study_outcomes(row['study_id']))
+
+            if 'study_docs' in flds:
+                row['study_docs'] = ';'.join(get_study_docs(row['study_id']))
+
             writer.writerow({f: clean(row[f]) for f in flds})
 
     response = StreamingResponse(iter([stream.getvalue()]),
@@ -262,6 +281,145 @@ def download(study_ids: str, fields: Optional[str] = '') -> StreamingResponse:
     response.headers[
         "Content-Disposition"] = "attachment; filename=download.csv"
     return response
+
+
+# --------------------------------------------------
+def get_study_conditions(study_id: int) -> List[str]:
+    """ Get conditions for study """
+
+    sql = """
+        select c.condition_name
+        from   condition c, study_to_condition s2c
+        where  s2c.study_id=%s
+        and    s2c.condition_id=c.condition_id
+    """
+
+    res = []
+    try:
+        cur = get_cur()
+        cur.execute(sql, (study_id, ))
+        res = cur.fetchall()
+        cur.close()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    return list(map(lambda r: r['condition_name'], res))
+
+
+# --------------------------------------------------
+def get_study_interventions(study_id: int) -> List[str]:
+    """ Get interventions for study """
+
+    sql = """
+        select i.intervention_name
+        from   intervention i, study_to_intervention s2i
+        where  s2i.study_id=%s
+        and    s2i.intervention_id=i.intervention_id
+    """
+
+    res = []
+    try:
+        cur = get_cur()
+        cur.execute(sql, (study_id, ))
+        res = cur.fetchall()
+        cur.close()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    return list(map(lambda r: r['intervention_name'], res))
+
+
+# --------------------------------------------------
+def get_study_outcomes(study_id: int) -> List[str]:
+    """ Get outcomes for study """
+
+    sql = """
+        select o.outcome_type, o.measure, o.time_frame, o.description
+        from   study_outcome o
+        where  o.study_id=%s
+    """
+
+    res = []
+    try:
+        cur = get_cur()
+        cur.execute(sql, (study_id, ))
+        res = cur.fetchall()
+        cur.close()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    def f(rec):
+        return '::'.join([
+            rec['outcome_type'] or '',
+            rec['measure'] or '',
+            rec['time_frame'] or '',
+            rec['description'] or '',
+        ])
+
+    return list(map(f, res))
+
+
+# --------------------------------------------------
+def get_study_docs(study_id: int) -> List[str]:
+    """ Get study_docs for study """
+
+    sql = """
+        select d.doc_id, d.doc_type, d.doc_url, d.doc_comment
+        from   study_doc d
+        where  d.study_id=%s
+    """
+
+    res = []
+    try:
+        cur = get_cur()
+        cur.execute(sql, (study_id, ))
+        res = cur.fetchall()
+        cur.close()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    def f(rec):
+        return '::'.join([
+            rec['doc_id'] or '',
+            rec['doc_type'] or '',
+            rec['doc_url'] or '',
+            rec['doc_comment'] or '',
+        ])
+
+    return list(map(f, res))
+
+
+# --------------------------------------------------
+def get_study_sponsors(study_id: int) -> List[str]:
+    """ Get sponsors for study """
+
+    sql = """
+        select p.sponsor_name
+        from   sponsor p, study_to_sponsor s2p
+        where  s2p.study_id=%s
+        and    s2p.sponsor_id=p.sponsor_id
+    """
+
+    res = []
+    try:
+        cur = get_cur()
+        cur.execute(sql, (study_id, ))
+        res = cur.fetchall()
+        cur.close()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    return list(map(lambda r: r['sponsor_name'], res))
 
 
 # --------------------------------------------------
@@ -402,10 +560,7 @@ def search(text: Optional[str] = '',
                                  nct_id=rec['nct_id'],
                                  title=rec['official_title'] or 'NA')
 
-    return SearchResults(
-        count=count,
-        records=list(map(f, res))
-    )
+    return SearchResults(count=count, records=list(map(f, res)))
 
 
 # --------------------------------------------------
@@ -567,8 +722,7 @@ def conditions(name: str,
                bool_search: Optional[int] = 0) -> List[ConditionDropDown]:
     """ Conditions/Num Studies """
 
-    clause = 'and c.condition_name @@ {}'.format(
-        tsquery(name, bool_search))
+    clause = 'and c.condition_name @@ {}'.format(tsquery(name, bool_search))
 
     sql = f"""
         select   c.condition_id, c.condition_name,

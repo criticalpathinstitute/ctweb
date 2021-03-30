@@ -104,7 +104,7 @@ type Msg
 init : Session -> String -> ( Model, Cmd Msg )
 init session nctId =
     ( { session = session
-      , study = RemoteData.NotAsked
+      , study = RemoteData.Loading
       , tabState = Tab.initialState
       , errorMessage = Nothing
       }
