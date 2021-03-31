@@ -53,6 +53,11 @@ view session navConfig navbarState content =
                         ]
                         [ text "Conditions" ]
                     , Navbar.itemLink
+                        [ Route.href Route.Sponsors
+                        , target "_blank"
+                        ]
+                        [ text "Sponsors" ]
+                    , Navbar.itemLink
                         [ Route.href Route.Cart
                         , target "_blank"
                         ]

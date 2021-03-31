@@ -14,6 +14,7 @@ import Json.Encode as Encode exposing (Value)
 import Page.Cart
 import Page.Conditions
 import Page.Home
+import Page.Sponsors
 import Page.Study
 import PageView
 import Route exposing (Route)
@@ -54,6 +55,7 @@ type Page
     | ConditionsPage Page.Conditions.Model
     | HomePage Page.Home.Model
     | StudyPage String Page.Study.Model
+    | SponsorsPage Page.Sponsors.Model
 
 
 type Msg
@@ -63,6 +65,7 @@ type Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
     | StudyMsg Page.Study.Msg
+    | SponsorsMsg Page.Sponsors.Msg
     | UrlChanged Url.Url
 
 
@@ -185,6 +188,18 @@ update msg model =
             , Cmd.map StudyMsg newCmd
             )
 
+        ( SponsorsMsg subMsg, SponsorsPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.Sponsors.update subMsg subModel
+            in
+            ( { model
+                | curPage = SponsorsPage newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map SponsorsMsg newCmd
+            )
+
         ( _, _ ) ->
             ( model, Cmd.none )
 
@@ -221,6 +236,12 @@ view model =
                 (Html.map StudyMsg
                     (Page.Study.view subModel)
                 )
+
+        SponsorsPage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map SponsorsMsg (Page.Sponsors.view subModel))
 
 
 subscriptions : Model -> Sub Msg
@@ -270,6 +291,15 @@ changeRouteTo maybeRoute model =
                     Page.Home.init model.session queryString
             in
             ( { model | curPage = HomePage subModel }, Cmd.map HomeMsg subMsg )
+
+        Just Route.Sponsors ->
+            let
+                ( subModel, subMsg ) =
+                    Page.Sponsors.init model.session
+            in
+            ( { model | curPage = SponsorsPage subModel }
+            , Cmd.map SponsorsMsg subMsg
+            )
 
         _ ->
             let

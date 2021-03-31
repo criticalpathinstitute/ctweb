@@ -732,7 +732,7 @@ def conditions(name: str,
         and      s2c.study_id=s.study_id
         {clause}
         group by 1, 2
-        order by 3 desc
+        order by 3 desc, 2
     """
 
     # print(sql)
@@ -753,16 +753,18 @@ def conditions(name: str,
 
 # --------------------------------------------------
 @app.get('/sponsors', response_model=List[Sponsor])
-def sponsors() -> List[Sponsor]:
+def sponsors(name: str, bool_search: Optional[int] = 0) -> List[Sponsor]:
     """ Sponsors/Num Studies """
 
-    sql = """
+    clause = 'and p.sponsor_name @@ {}'.format(tsquery(name, bool_search))
+    sql = f"""
         select   p.sponsor_id, p.sponsor_name, count(s.study_id) as num_studies
         from     sponsor p, study_to_sponsor s2p, study s
         where    p.sponsor_id=s2p.sponsor_id
         and      s2p.study_id=s.study_id
+        {clause}
         group by 1, 2
-        order by 2
+        order by 3 desc, 2
     """
 
     cur = get_cur()
@@ -770,8 +772,9 @@ def sponsors() -> List[Sponsor]:
     try:
         cur.execute(sql)
         res = cur.fetchall()
-    except:
+    except Exception as e:
         dbh.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         cur.close()
 

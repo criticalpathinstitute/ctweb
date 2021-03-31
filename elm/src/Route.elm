@@ -12,6 +12,7 @@ type Route
     = Cart
     | Conditions
     | Home (Maybe String)
+    | Sponsors
     | Study String
 
 
@@ -20,6 +21,7 @@ parser =
     oneOf
         [ Parser.map Home (Parser.top <?> Query.string "condition")
         , Parser.map Conditions (s "conditions")
+        , Parser.map Sponsors (s "sponsors")
         , Parser.map Cart (s "cart")
         , Parser.map Study (s "study" </> string)
         ]
@@ -71,5 +73,8 @@ routeToString page =
 
                 Study nctId ->
                     [ "study", nctId ]
+
+                Sponsors ->
+                    [ "sponsors" ]
     in
     "#/" ++ String.join "/" pieces
