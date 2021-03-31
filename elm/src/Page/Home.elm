@@ -450,6 +450,31 @@ view model =
         viewSelectedStudyTypes =
             List.map viewStudyType model.querySelectedStudyTypes
 
+        canSearch =
+            String.length (Maybe.withDefault "" model.queryText)
+                > 0
+                || String.length (Maybe.withDefault "" model.queryConditions)
+                > 0
+                || String.length (Maybe.withDefault "" model.querySponsors)
+                > 0
+                || Maybe.withDefault 0 model.queryEnrollment
+                > 0
+                || List.length model.querySelectedPhases
+                > 0
+                || List.length model.querySelectedStudyTypes
+                > 0
+
+        enrollmentDisplay =
+            let
+                val =
+                    Maybe.withDefault 0 model.queryEnrollment
+            in
+            if val > 0 then
+                String.fromInt val
+
+            else
+                ""
+
         searchForm =
             Form.form [ onSubmit DoSearch ]
                 [ Form.row []
@@ -457,7 +482,12 @@ view model =
                         [ text "Full Text" ]
                     , Form.col [ Col.sm5 ]
                         [ Input.text
-                            [ Input.attrs [ onInput SetQueryText ] ]
+                            [ Input.attrs
+                                [ onInput SetQueryText
+                                , value <|
+                                    Maybe.withDefault "" model.queryText
+                                ]
+                            ]
                         ]
                     , Form.col [ Col.sm2 ]
                         [ Checkbox.checkbox
@@ -494,7 +524,12 @@ view model =
                         [ text "Sponsors" ]
                     , Form.col [ Col.sm5 ]
                         [ Input.text
-                            [ Input.attrs [ onInput SetSponsors ] ]
+                            [ Input.attrs
+                                [ onInput SetSponsors
+                                , value <|
+                                    Maybe.withDefault "" model.querySponsors
+                                ]
+                            ]
                         ]
                     , Form.col [ Col.sm2 ]
                         [ Checkbox.checkbox
@@ -523,7 +558,11 @@ view model =
                     [ Form.colLabel [ Col.sm2 ] [ text "Enrollment" ]
                     , Form.col [ Col.sm5 ]
                         [ Input.text
-                            [ Input.attrs [ onInput SetEnrollment ] ]
+                            [ Input.attrs
+                                [ onInput SetEnrollment
+                                , value enrollmentDisplay
+                                ]
+                            ]
                         ]
                     ]
                 , Form.row []
@@ -543,6 +582,7 @@ view model =
                             [ Button.primary
                             , Button.onClick DoSearch
                             , Button.attrs [ Spacing.mx1 ]
+                            , Button.disabled (not canSearch)
                             ]
                             [ text "Submit" ]
                         , Button.button
