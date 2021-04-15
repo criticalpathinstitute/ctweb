@@ -181,6 +181,11 @@ tableConfig =
         , columns =
             [ Table.stringColumn "Sponsor" .sponsorName
             , Table.intColumn "Num Studies" .numStudies
+            , Table.veryCustomColumn
+                { name = "Link"
+                , viewData = linkCol
+                , sorter = Table.increasingOrDecreasingBy .sponsorName
+                }
             ]
         }
 

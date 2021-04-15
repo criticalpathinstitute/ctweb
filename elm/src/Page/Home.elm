@@ -22,6 +22,7 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
+import Maybe.Extra exposing (isNothing)
 import Regex
 import RemoteData exposing (RemoteData, WebData)
 import Route
@@ -44,6 +45,7 @@ type alias Model =
     , queryText : Maybe String
     , queryTextBool : Bool
     , recordLimit : Int
+    , searchName : Maybe String
     , searchResults : WebData SearchResults
     , selectedStudies : List Study
     , session : Session
@@ -62,6 +64,11 @@ type alias Condition =
 type alias Phase =
     { phaseId : Int
     , phaseName : String
+    }
+
+
+type alias SavedSearches =
+    { numSavedSearches : Int
     }
 
 
@@ -106,6 +113,8 @@ type Msg
     | RemovePhase Phase
     | RemoveStudyType StudyType
     | Reset
+    | SaveSearch
+    | SavedSearchResponse (WebData SavedSearches)
     | SearchResponse (WebData SearchResults)
     | SetConditions String
     | SetEnrollment String
@@ -114,6 +123,7 @@ type Msg
     | SetQueryText String
     | SetQueryTextBool Bool
     | SetRecordLimit String
+    | SetSearchName String
     | SetSponsors String
     | StudyTypesResponse (WebData (List StudyType))
     | SummaryResponse (WebData Summary)
@@ -137,6 +147,7 @@ initialModel session =
     , queryText = Nothing
     , queryTextBool = False
     , recordLimit = defaultRecordLimit
+    , searchName = Nothing
     , searchResults = RemoteData.NotAsked
     , selectedStudies = []
     , session = session
@@ -148,6 +159,9 @@ initialModel session =
 init : Session -> Maybe String -> ( Model, Cmd Msg )
 init session queryStringCondition =
     let
+        _ =
+            Debug.log "queryStringCondition" queryStringCondition
+
         model =
             initialModel session
     in
@@ -301,10 +315,16 @@ update msg model =
             , Cmd.none
             )
 
+        SaveSearch ->
+            ( model, saveSearch model )
+
         SummaryResponse data ->
             ( { model | summary = data }
             , Cmd.none
             )
+
+        SavedSearchResponse data ->
+            ( model, Cmd.none )
 
         SearchResponse data ->
             ( { model | searchResults = data }
@@ -318,6 +338,11 @@ update msg model =
 
         SetQueryConditionsBool val ->
             ( { model | queryConditionsBool = val }, Cmd.none )
+
+        SetSearchName text ->
+            ( { model | searchName = strToMaybe text }
+            , Cmd.none
+            )
 
         SetSponsors text ->
             ( { model | querySponsors = strToMaybe (String.toLower text) }
@@ -577,6 +602,16 @@ view model =
                         ]
                     ]
                 , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Search Name" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetSearchName
+                                ]
+                            ]
+                        ]
+                    ]
+                , Form.row []
                     [ Form.col [ Col.offsetSm2, Col.sm5 ]
                         [ Button.button
                             [ Button.primary
@@ -591,6 +626,15 @@ view model =
                             , Button.attrs [ Spacing.mx1 ]
                             ]
                             [ text "Clear" ]
+                        , Button.button
+                            [ Button.secondary
+                            , Button.onClick SaveSearch
+                            , Button.attrs [ Spacing.mx1 ]
+                            , Button.disabled <|
+                                Bool.Extra.any
+                                    [ not canSearch, isNothing model.searchName ]
+                            ]
+                            [ text "Save Search" ]
                         ]
                     ]
                 ]
@@ -879,6 +923,32 @@ doSearch model =
         }
 
 
+saveSearch : Model -> Cmd Msg
+saveSearch model =
+    let
+        searchName =
+            Url.Builder.string "search_name"
+                (Maybe.withDefault "" model.searchName)
+
+        fullText =
+            Url.Builder.string "full_text"
+                (Maybe.withDefault "" model.queryText)
+
+        params =
+            Url.Builder.toQuery [ searchName, fullText ]
+
+        saveSearchUrl =
+            apiServer ++ "/save_search" ++ params
+    in
+    Http.get
+        { url = saveSearchUrl
+        , expect =
+            Http.expectJson
+                (RemoteData.fromResult >> SavedSearchResponse)
+                decoderSavedSearches
+        }
+
+
 strToMaybe : String -> Maybe String
 strToMaybe s =
     case String.length s of
@@ -918,6 +988,12 @@ decoderSummary : Decoder Summary
 decoderSummary =
     Json.Decode.succeed Summary
         |> Json.Decode.Pipeline.required "num_studies" int
+
+
+decoderSavedSearches : Decoder SavedSearches
+decoderSavedSearches =
+    Json.Decode.succeed SavedSearches
+        |> Json.Decode.Pipeline.required "num_save_searches" int
 
 
 decoderSearchResults : Decoder SearchResults

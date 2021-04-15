@@ -56,6 +56,16 @@ class Phase(BaseModel):
     phase_name: str
 
 
+class SavedSearch(BaseModel):
+    saved_search_id: int
+    search_name: str
+    full_text: str
+
+
+class SavedSearches(BaseModel):
+    num_saved_searches: int
+
+
 class StudyCart(BaseModel):
     study_id: int
     nct_id: str
@@ -803,3 +813,39 @@ def phases() -> List[Phase]:
         cur.close()
 
     return list(map(lambda r: Phase(**dict(r)), res))
+
+
+# --------------------------------------------------
+@app.get('/save_search', response_model=SavedSearches)
+def save_search(search_name: str, full_text: Optional[str] = '') -> int:
+    """ Save search """
+
+    saved_search, _ = ct.SavedSearch.get_or_create(
+        search_name=search_name,
+        full_text=full_text or '')
+
+    return SavedSearches(num_saved_searches=1)
+
+
+# --------------------------------------------------
+@app.get('/saved_searches', response_model=List[SavedSearch])
+def saved_searches() -> List[SavedSearch]:
+    """ Get saved searches """
+
+    sql = """
+        select   s.saved_search_id, s.search_name, s.full_text
+        from     saved_search s
+        order by 2
+    """
+
+    cur = get_cur()
+    res = []
+    try:
+        cur.execute(sql)
+        res = cur.fetchall()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    return list(map(lambda r: SavedSearch(**dict(r)), res))

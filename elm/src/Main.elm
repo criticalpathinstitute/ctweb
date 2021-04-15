@@ -14,6 +14,7 @@ import Json.Encode as Encode exposing (Value)
 import Page.Cart
 import Page.Conditions
 import Page.Home
+import Page.Searches
 import Page.Sponsors
 import Page.Study
 import PageView
@@ -55,6 +56,7 @@ type Page
     | ConditionsPage Page.Conditions.Model
     | HomePage Page.Home.Model
     | StudyPage String Page.Study.Model
+    | SavedSearchesPage Page.Searches.Model
     | SponsorsPage Page.Sponsors.Model
 
 
@@ -65,6 +67,7 @@ type Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
     | StudyMsg Page.Study.Msg
+    | SavedSearchesMsg Page.Searches.Msg
     | SponsorsMsg Page.Sponsors.Msg
     | UrlChanged Url.Url
 
@@ -101,24 +104,21 @@ init flags url navKey =
         ( navbarState, navbarCmd ) =
             Navbar.initialState NavbarMsg
 
-        ( homeModel, homeMsg ) =
-            Page.Home.init session Nothing
-
-        initialModel =
-            { key = navKey
-            , url = url
-            , curPage = HomePage homeModel
-            , navbarState = navbarState
-            , session = session
-            }
-
         currentRoute =
             Route.fromUrl url
 
-        ( newModel, subMsg ) =
-            changeRouteTo currentRoute initialModel
+        ( newPage, subMsg ) =
+            changeRouteTo currentRoute session
+
+        model =
+            { key = navKey
+            , url = url
+            , curPage = newPage
+            , navbarState = navbarState
+            , session = session
+            }
     in
-    ( newModel, Cmd.batch [ navbarCmd, subMsg ] )
+    ( model, Cmd.batch [ navbarCmd, subMsg ] )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -135,7 +135,11 @@ update msg model =
                     ( model, Nav.load href )
 
         ( UrlChanged url, _ ) ->
-            changeRouteTo (Route.fromUrl url) model
+            let
+                ( newPage, newMsg ) =
+                    changeRouteTo (Route.fromUrl url) model.session
+            in
+            ( { model | curPage = newPage }, newMsg )
 
         ( NavbarMsg state, _ ) ->
             ( { model | navbarState = state }, Cmd.none )
@@ -188,6 +192,18 @@ update msg model =
             , Cmd.map StudyMsg newCmd
             )
 
+        ( SavedSearchesMsg subMsg, SavedSearchesPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.Searches.update subMsg subModel
+            in
+            ( { model
+                | curPage = SavedSearchesPage newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map SavedSearchesMsg newCmd
+            )
+
         ( SponsorsMsg subMsg, SponsorsPage subModel ) ->
             let
                 ( newSubModel, newCmd ) =
@@ -237,6 +253,12 @@ view model =
                     (Page.Study.view subModel)
                 )
 
+        SavedSearchesPage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map SavedSearchesMsg (Page.Searches.view subModel))
+
         SponsorsPage subModel ->
             PageView.view model.session
                 navConfig
@@ -255,55 +277,54 @@ subscriptions model =
             Sub.none
 
 
-changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
-changeRouteTo maybeRoute model =
+changeRouteTo : Maybe Route -> Session -> ( Page, Cmd Msg )
+changeRouteTo maybeRoute session =
     case maybeRoute of
         Just (Route.Study nctId) ->
             let
                 ( subModel, subMsg ) =
-                    Page.Study.init model.session nctId
+                    Page.Study.init session nctId
             in
-            ( { model | curPage = StudyPage nctId subModel }
-            , Cmd.map StudyMsg subMsg
-            )
+            ( StudyPage nctId subModel, Cmd.map StudyMsg subMsg )
 
         Just Route.Cart ->
             let
                 ( subModel, subMsg ) =
-                    Page.Cart.init model.session
+                    Page.Cart.init session
             in
-            ( { model | curPage = CartPage subModel }
-            , Cmd.map CartMsg subMsg
-            )
+            ( CartPage subModel, Cmd.map CartMsg subMsg )
 
         Just Route.Conditions ->
             let
                 ( subModel, subMsg ) =
-                    Page.Conditions.init model.session
+                    Page.Conditions.init session
             in
-            ( { model | curPage = ConditionsPage subModel }
-            , Cmd.map ConditionsMsg subMsg
-            )
+            ( ConditionsPage subModel, Cmd.map ConditionsMsg subMsg )
 
         Just (Route.Home queryString) ->
             let
                 ( subModel, subMsg ) =
-                    Page.Home.init model.session queryString
+                    Page.Home.init session queryString
             in
-            ( { model | curPage = HomePage subModel }, Cmd.map HomeMsg subMsg )
+            ( HomePage subModel, Cmd.map HomeMsg subMsg )
+
+        Just Route.SavedSearches ->
+            let
+                ( subModel, subMsg ) =
+                    Page.Searches.init session
+            in
+            ( SavedSearchesPage subModel, Cmd.map SavedSearchesMsg subMsg )
 
         Just Route.Sponsors ->
             let
                 ( subModel, subMsg ) =
-                    Page.Sponsors.init model.session
+                    Page.Sponsors.init session
             in
-            ( { model | curPage = SponsorsPage subModel }
-            , Cmd.map SponsorsMsg subMsg
-            )
+            ( SponsorsPage subModel, Cmd.map SponsorsMsg subMsg )
 
         _ ->
             let
                 ( subModel, subMsg ) =
-                    Page.Home.init model.session Nothing
+                    Page.Home.init session Nothing
             in
-            ( { model | curPage = HomePage subModel }, Cmd.map HomeMsg subMsg )
+            ( HomePage subModel, Cmd.map HomeMsg subMsg )
