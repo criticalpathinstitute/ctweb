@@ -21,6 +21,7 @@ import PageView
 import Route exposing (Route)
 import Session exposing (Session)
 import State exposing (State)
+import Types exposing (SearchParams)
 import Url
 
 
@@ -42,6 +43,8 @@ type alias Model =
     , curPage : Page
     , navbarState : Navbar.State
     , session : Session
+    , flag : Int
+    , searchParams : Maybe SearchParams
     }
 
 
@@ -67,9 +70,10 @@ type Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
     | StudyMsg Page.Study.Msg
-    | SavedSearchesMsg Page.Searches.Msg
+    | SavedSearchesMsg Page.Searches.InternalMsg
     | SponsorsMsg Page.Sponsors.Msg
     | UrlChanged Url.Url
+    | SetSearchParams SearchParams
 
 
 flagsDecoder : Decoder Flags
@@ -107,8 +111,11 @@ init flags url navKey =
         currentRoute =
             Route.fromUrl url
 
+        _ =
+            Debug.log "currentRoute" currentRoute
+
         ( newPage, subMsg ) =
-            changeRouteTo currentRoute session
+            changeRouteTo currentRoute session Nothing
 
         model =
             { key = navKey
@@ -116,6 +123,8 @@ init flags url navKey =
             , curPage = newPage
             , navbarState = navbarState
             , session = session
+            , flag = 0
+            , searchParams = Nothing
             }
     in
     ( model, Cmd.batch [ navbarCmd, subMsg ] )
@@ -137,7 +146,7 @@ update msg model =
         ( UrlChanged url, _ ) ->
             let
                 ( newPage, newMsg ) =
-                    changeRouteTo (Route.fromUrl url) model.session
+                    changeRouteTo (Route.fromUrl url) model.session model.searchParams
             in
             ( { model | curPage = newPage }, newMsg )
 
@@ -201,7 +210,7 @@ update msg model =
                 | curPage = SavedSearchesPage newSubModel
                 , session = newSubModel.session
               }
-            , Cmd.map SavedSearchesMsg newCmd
+            , Cmd.map childTranslator newCmd
             )
 
         ( SponsorsMsg subMsg, SponsorsPage subModel ) ->
@@ -216,6 +225,19 @@ update msg model =
             , Cmd.map SponsorsMsg newCmd
             )
 
+        ( SetSearchParams params, _ ) ->
+            let
+                ( newPage, newMsg ) =
+                    changeRouteTo (Just Route.Home) model.session (Just params)
+
+                newModel =
+                    { model
+                        | curPage = newPage
+                        , searchParams = Just params
+                    }
+            in
+            ( newModel, newMsg )
+
         ( _, _ ) ->
             ( model, Cmd.none )
 
@@ -225,6 +247,9 @@ view model =
     let
         navConfig =
             Navbar.config NavbarMsg
+
+        _ =
+            Debug.log "searchParams" model.searchParams
     in
     case model.curPage of
         CartPage subModel ->
@@ -249,21 +274,27 @@ view model =
             PageView.view model.session
                 navConfig
                 model.navbarState
-                (Html.map StudyMsg
-                    (Page.Study.view subModel)
-                )
+                (Html.map StudyMsg (Page.Study.view subModel))
 
         SavedSearchesPage subModel ->
             PageView.view model.session
                 navConfig
                 model.navbarState
-                (Html.map SavedSearchesMsg (Page.Searches.view subModel))
+                (Html.map childTranslator (Page.Searches.view subModel))
 
         SponsorsPage subModel ->
             PageView.view model.session
                 navConfig
                 model.navbarState
                 (Html.map SponsorsMsg (Page.Sponsors.view subModel))
+
+
+childTranslator : Page.Searches.Translator Msg
+childTranslator =
+    Page.Searches.translator
+        { onInternalMessage = SavedSearchesMsg
+        , onSetSearchParams = SetSearchParams
+        }
 
 
 subscriptions : Model -> Sub Msg
@@ -277,8 +308,8 @@ subscriptions model =
             Sub.none
 
 
-changeRouteTo : Maybe Route -> Session -> ( Page, Cmd Msg )
-changeRouteTo maybeRoute session =
+changeRouteTo : Maybe Route -> Session -> Maybe SearchParams -> ( Page, Cmd Msg )
+changeRouteTo maybeRoute session params =
     case maybeRoute of
         Just (Route.Study nctId) ->
             let
@@ -301,10 +332,10 @@ changeRouteTo maybeRoute session =
             in
             ( ConditionsPage subModel, Cmd.map ConditionsMsg subMsg )
 
-        Just (Route.Home queryString) ->
+        Just Route.Home ->
             let
                 ( subModel, subMsg ) =
-                    Page.Home.init session queryString
+                    Page.Home.init session params
             in
             ( HomePage subModel, Cmd.map HomeMsg subMsg )
 
@@ -313,7 +344,7 @@ changeRouteTo maybeRoute session =
                 ( subModel, subMsg ) =
                     Page.Searches.init session
             in
-            ( SavedSearchesPage subModel, Cmd.map SavedSearchesMsg subMsg )
+            ( SavedSearchesPage subModel, Cmd.map childTranslator subMsg )
 
         Just Route.Sponsors ->
             let

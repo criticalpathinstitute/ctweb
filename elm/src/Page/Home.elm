@@ -29,6 +29,7 @@ import Route
 import Session exposing (Session)
 import Set
 import Task
+import Types exposing (SearchParams)
 import Url.Builder
 
 
@@ -156,16 +157,19 @@ initialModel session =
     }
 
 
-init : Session -> Maybe String -> ( Model, Cmd Msg )
-init session queryStringCondition =
+init : Session -> Maybe SearchParams -> ( Model, Cmd Msg )
+init session params =
     let
-        _ =
-            Debug.log "queryStringCondition" queryStringCondition
-
         model =
             initialModel session
+
+        queryText =
+            Maybe.andThen .fullText params
+
+        _ =
+            Debug.log "params" params
     in
-    ( { model | queryConditions = queryStringCondition }
+    ( { model | queryText = queryText }
     , Cmd.batch [ getSummary, getPhases, getStudyTypes ]
     )
 
@@ -934,8 +938,25 @@ saveSearch model =
             Url.Builder.string "full_text"
                 (Maybe.withDefault "" model.queryText)
 
+        fullTextBool =
+            Url.Builder.string "full_text_bool" model.queryTextBool
+
+        conditions =
+            Url.Builder.string "conditions"
+                (Maybe.withDefault "" model.queryConditions)
+
+        conditionsBool =
+            Url.Builder.string "conditions_bool" model.queryConditionsBool
+
+        sponsors =
+            Url.Builder.string "sponsors"
+                (Maybe.withDefault "" model.querySponsors)
+
+        sponsorsBool =
+            Url.Builder.string "sponsors_bool" model.querySponsorsBool
+
         params =
-            Url.Builder.toQuery [ searchName, fullText ]
+            Url.Builder.toQuery [ searchName, fullText, fullTextBool, conditions, conditionsBool, sponsors, sponsorsBool ]
 
         saveSearchUrl =
             apiServer ++ "/save_search" ++ params

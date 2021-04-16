@@ -162,19 +162,19 @@ view model =
 
 tableConfig : Table.Config Condition Msg
 tableConfig =
-    let
-        linkCol : Condition -> Table.HtmlDetails Msg
-        linkCol condition =
-            Table.HtmlDetails []
-                [ a
-                    [ href
-                        (Route.routeToString
-                            (Route.Home (Just condition.conditionName))
-                        )
-                    ]
-                    [ text condition.conditionName ]
-                ]
-    in
+    --let
+    --    linkCol : Condition -> Table.HtmlDetails Msg
+    --    linkCol condition =
+    --        Table.HtmlDetails []
+    --            [ a
+    --                [ href
+    --                    (Route.routeToString
+    --                        (Route.Home (Just condition.conditionName))
+    --                    )
+    --                ]
+    --                [ text condition.conditionName ]
+    --            ]
+    --in
     Table.config
         { toId = .conditionName
         , toMsg = SetTableState
