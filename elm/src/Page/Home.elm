@@ -22,7 +22,7 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
-import Maybe.Extra exposing (isNothing)
+import Maybe.Extra exposing (isNothing, unwrap)
 import Regex
 import RemoteData exposing (RemoteData, WebData)
 import Route
@@ -36,6 +36,8 @@ import Url.Builder
 type alias Model =
     { errorMessage : Maybe String
     , phases : WebData (List Phase)
+    , initPhaseIds : Maybe (List Int)
+    , initStudyTypeIds : Maybe (List Int)
     , queryConditions : Maybe String
     , queryConditionsBool : Bool
     , queryEnrollment : Maybe Int
@@ -137,6 +139,8 @@ defaultRecordLimit =
 initialModel : Session -> Model
 initialModel session =
     { errorMessage = Nothing
+    , initPhaseIds = Nothing
+    , initStudyTypeIds = Nothing
     , phases = RemoteData.NotAsked
     , queryConditions = Nothing
     , queryConditionsBool = False
@@ -166,10 +170,48 @@ init session params =
         queryText =
             Maybe.andThen .fullText params
 
+        queryTextBool =
+            unwrap False .fullTextBool params
+
+        queryConditions =
+            Maybe.andThen .conditions params
+
+        queryConditionsBool =
+            unwrap False .conditionsBool params
+
+        querySponsors =
+            Maybe.andThen .sponsors params
+
+        querySponsorsBool =
+            unwrap False .sponsorsBool params
+
+        queryEnrollment =
+            Maybe.andThen (\p -> Just p.enrollment) params
+
+        searchName =
+            Maybe.andThen .searchName params
+
+        initPhaseIds =
+            Maybe.andThen (\p -> Just p.phaseIds) params
+
+        initStudyTypeIds =
+            Maybe.andThen (\p -> Just p.studyTypeIds) params
+
         _ =
             Debug.log "params" params
     in
-    ( { model | queryText = queryText }
+    ( { model
+        | initPhaseIds = initPhaseIds
+        , initStudyTypeIds = initStudyTypeIds
+        , queryText = queryText
+        , queryTextBool = queryTextBool
+        , querySponsors = querySponsors
+        , querySponsorsBool = querySponsorsBool
+        , queryConditions = queryConditions
+        , queryConditionsBool = queryConditionsBool
+        , queryEnrollment = queryEnrollment
+        , searchName = searchName
+      }
     , Cmd.batch [ getSummary, getPhases, getStudyTypes ]
     )
 
@@ -278,8 +320,29 @@ update msg model =
         DoSearch ->
             ( { model | searchResults = RemoteData.Loading }, doSearch model )
 
-        PhasesResponse data ->
-            ( { model | phases = data }
+        PhasesResponse phases ->
+            let
+                newPhases =
+                    case phases of
+                        RemoteData.Success data ->
+                            data
+
+                        _ ->
+                            []
+
+                selectPhases initPhaseIds =
+                    List.filter
+                        (\p -> List.member p.phaseId initPhaseIds)
+                        newPhases
+
+                newSelectedPhases =
+                    unwrap [] selectPhases model.initPhaseIds
+            in
+            ( { model
+                | phases = phases
+                , querySelectedPhases = newSelectedPhases
+                , initPhaseIds = Nothing
+              }
             , Cmd.none
             )
 
@@ -374,8 +437,29 @@ update msg model =
         SetEnrollment enrollment ->
             ( { model | queryEnrollment = String.toInt enrollment }, Cmd.none )
 
-        StudyTypesResponse data ->
-            ( { model | studyTypes = data }
+        StudyTypesResponse studyTypes ->
+            let
+                newStudyTypes =
+                    case studyTypes of
+                        RemoteData.Success data ->
+                            data
+
+                        _ ->
+                            []
+
+                selectStudyTypes initStudyTypeIds =
+                    List.filter
+                        (\p -> List.member p.studyTypeId initStudyTypeIds)
+                        newStudyTypes
+
+                newSelectedStudyTypes =
+                    unwrap [] selectStudyTypes model.initStudyTypeIds
+            in
+            ( { model
+                | studyTypes = studyTypes
+                , querySelectedStudyTypes = newSelectedStudyTypes
+                , initStudyTypeIds = Nothing
+              }
             , Cmd.none
             )
 
@@ -611,6 +695,7 @@ view model =
                         [ Input.text
                             [ Input.attrs
                                 [ onInput SetSearchName
+                                , value (Maybe.withDefault "" model.searchName)
                                 ]
                             ]
                         ]
@@ -939,24 +1024,51 @@ saveSearch model =
                 (Maybe.withDefault "" model.queryText)
 
         fullTextBool =
-            Url.Builder.string "full_text_bool" model.queryTextBool
+            Url.Builder.int "full_text_bool" (ifElse 1 0 model.queryTextBool)
 
         conditions =
             Url.Builder.string "conditions"
                 (Maybe.withDefault "" model.queryConditions)
 
         conditionsBool =
-            Url.Builder.string "conditions_bool" model.queryConditionsBool
+            Url.Builder.int "conditions_bool" (ifElse 1 0 model.queryConditionsBool)
 
         sponsors =
             Url.Builder.string "sponsors"
                 (Maybe.withDefault "" model.querySponsors)
 
         sponsorsBool =
-            Url.Builder.string "sponsors_bool" model.querySponsorsBool
+            Url.Builder.int "sponsors_bool" (ifElse 1 0 model.querySponsorsBool)
+
+        phaseIds =
+            List.map (\p -> String.fromInt p.phaseId)
+                model.querySelectedPhases
+                |> String.join ","
+                |> Url.Builder.string "phase_ids"
+
+        studyTypeIds =
+            List.map (\s -> String.fromInt s.studyTypeId)
+                model.querySelectedStudyTypes
+                |> String.join ","
+                |> Url.Builder.string "study_type_ids"
+
+        enrollment =
+            Url.Builder.int "enrollment"
+                (Maybe.withDefault 0 model.queryEnrollment)
 
         params =
-            Url.Builder.toQuery [ searchName, fullText, fullTextBool, conditions, conditionsBool, sponsors, sponsorsBool ]
+            Url.Builder.toQuery
+                [ searchName
+                , fullText
+                , fullTextBool
+                , conditions
+                , conditionsBool
+                , sponsors
+                , sponsorsBool
+                , phaseIds
+                , studyTypeIds
+                , enrollment
+                ]
 
         saveSearchUrl =
             apiServer ++ "/save_search" ++ params

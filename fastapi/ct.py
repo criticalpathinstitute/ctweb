@@ -36,9 +36,17 @@ class Phase(BaseModel):
         table_name = 'phase'
 
 class SavedSearch(BaseModel):
-    full_text = TextField(null=True)
+    conditions = TextField(constraints=[SQL("DEFAULT ''::text")])
+    conditions_bool = IntegerField(constraints=[SQL("DEFAULT 0")])
+    enrollment = IntegerField(constraints=[SQL("DEFAULT 0")])
+    full_text = TextField(constraints=[SQL("DEFAULT ''::text")])
+    full_text_bool = IntegerField(constraints=[SQL("DEFAULT 0")])
+    phase_ids = TextField(constraints=[SQL("DEFAULT ''::text")])
     saved_search_id = AutoField()
     search_name = CharField()
+    sponsors = TextField(constraints=[SQL("DEFAULT ''::text")])
+    sponsors_bool = IntegerField(constraints=[SQL("DEFAULT 0")])
+    study_type_ids = TextField(constraints=[SQL("DEFAULT ''::text")])
 
     class Meta:
         table_name = 'saved_search'
