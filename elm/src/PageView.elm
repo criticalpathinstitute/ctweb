@@ -39,7 +39,7 @@ view session navConfig navbarState content =
             navConfig
                 |> Navbar.withAnimation
                 |> Navbar.brand
-                    [ Route.href (Route.Home Nothing) ]
+                    [ Route.href Route.Home ]
                     [ img
                         [ src "./assets/images/logo.png"
                         , class "d-inline-block align-top"
@@ -57,6 +57,11 @@ view session navConfig navbarState content =
                         , target "_blank"
                         ]
                         [ text "Sponsors" ]
+                    , Navbar.itemLink
+                        [ Route.href Route.SavedSearches
+                        , target "_blank"
+                        ]
+                        [ text "Searches" ]
                     , Navbar.itemLink
                         [ Route.href Route.Cart
                         , target "_blank"

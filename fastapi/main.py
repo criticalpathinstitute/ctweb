@@ -56,6 +56,24 @@ class Phase(BaseModel):
     phase_name: str
 
 
+class SavedSearch(BaseModel):
+    saved_search_id: int
+    search_name: str
+    full_text: str
+    full_text_bool: int
+    sponsors: str
+    sponsors_bool: int
+    conditions: str
+    conditions_bool: int
+    phase_ids: str
+    study_type_ids: str
+    enrollment: int
+
+
+class SaveSearchResponse(BaseModel):
+    num_saved_searches: int
+
+
 class StudyCart(BaseModel):
     study_id: int
     nct_id: str
@@ -803,3 +821,62 @@ def phases() -> List[Phase]:
         cur.close()
 
     return list(map(lambda r: Phase(**dict(r)), res))
+
+
+# --------------------------------------------------
+@app.get('/save_search', response_model=SaveSearchResponse)
+def save_search(
+    search_name: str,
+    full_text: Optional[str] = '',
+    full_text_bool: Optional[int] = 0,
+    conditions: Optional[str] = '',
+    conditions_bool: Optional[int] = 0,
+    sponsors: Optional[str] = '',
+    sponsors_bool: Optional[int] = 0,
+    phase_ids: Optional[str] = '',
+    study_type_ids: Optional[str] = '',
+    enrollment: Optional[int] = 0,
+) -> int:
+    """ Save search """
+
+    saved_search, _ = ct.SavedSearch.get_or_create(
+        search_name=search_name,
+        full_text=full_text,
+        full_text_bool=full_text_bool,
+        conditions=conditions,
+        conditions_bool=conditions_bool,
+        sponsors=sponsors,
+        sponsors_bool=sponsors_bool,
+        phase_ids=phase_ids,
+        study_type_ids=study_type_ids,
+        enrollment=enrollment)
+
+    return SaveSearchResponse(num_saved_searches=1)
+
+
+# --------------------------------------------------
+@app.get('/saved_searches', response_model=List[SavedSearch])
+def saved_searches() -> List[SavedSearch]:
+    """ Get saved searches """
+
+    sql = """
+        select   s.saved_search_id, s.search_name,
+                 s.full_text, s.full_text_bool,
+                 s.conditions, s.conditions_bool,
+                 s.sponsors, s.sponsors_bool,
+                 s.phase_ids, s.study_type_ids, s.enrollment
+        from     saved_search s
+        order by 2
+    """
+
+    cur = get_cur()
+    res = []
+    try:
+        cur.execute(sql)
+        res = cur.fetchall()
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    return list(map(lambda r: SavedSearch(**dict(r)), res))

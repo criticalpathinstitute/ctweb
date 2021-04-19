@@ -22,18 +22,22 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
 import Json.Decode.Pipeline exposing (hardcoded, optional, required)
+import Maybe.Extra exposing (isNothing, unwrap)
 import Regex
 import RemoteData exposing (RemoteData, WebData)
 import Route
 import Session exposing (Session)
 import Set
 import Task
+import Types exposing (SearchParams)
 import Url.Builder
 
 
 type alias Model =
     { errorMessage : Maybe String
     , phases : WebData (List Phase)
+    , initPhaseIds : Maybe (List Int)
+    , initStudyTypeIds : Maybe (List Int)
     , queryConditions : Maybe String
     , queryConditionsBool : Bool
     , queryEnrollment : Maybe Int
@@ -44,6 +48,7 @@ type alias Model =
     , queryText : Maybe String
     , queryTextBool : Bool
     , recordLimit : Int
+    , searchName : Maybe String
     , searchResults : WebData SearchResults
     , selectedStudies : List Study
     , session : Session
@@ -62,6 +67,11 @@ type alias Condition =
 type alias Phase =
     { phaseId : Int
     , phaseName : String
+    }
+
+
+type alias SavedSearches =
+    { numSavedSearches : Int
     }
 
 
@@ -106,6 +116,8 @@ type Msg
     | RemovePhase Phase
     | RemoveStudyType StudyType
     | Reset
+    | SaveSearch
+    | SavedSearchResponse (WebData SavedSearches)
     | SearchResponse (WebData SearchResults)
     | SetConditions String
     | SetEnrollment String
@@ -114,6 +126,7 @@ type Msg
     | SetQueryText String
     | SetQueryTextBool Bool
     | SetRecordLimit String
+    | SetSearchName String
     | SetSponsors String
     | StudyTypesResponse (WebData (List StudyType))
     | SummaryResponse (WebData Summary)
@@ -126,6 +139,8 @@ defaultRecordLimit =
 initialModel : Session -> Model
 initialModel session =
     { errorMessage = Nothing
+    , initPhaseIds = Nothing
+    , initStudyTypeIds = Nothing
     , phases = RemoteData.NotAsked
     , queryConditions = Nothing
     , queryConditionsBool = False
@@ -137,6 +152,7 @@ initialModel session =
     , queryText = Nothing
     , queryTextBool = False
     , recordLimit = defaultRecordLimit
+    , searchName = Nothing
     , searchResults = RemoteData.NotAsked
     , selectedStudies = []
     , session = session
@@ -145,13 +161,57 @@ initialModel session =
     }
 
 
-init : Session -> Maybe String -> ( Model, Cmd Msg )
-init session queryStringCondition =
+init : Session -> Maybe SearchParams -> ( Model, Cmd Msg )
+init session params =
     let
         model =
             initialModel session
+
+        queryText =
+            Maybe.andThen .fullText params
+
+        queryTextBool =
+            unwrap False .fullTextBool params
+
+        queryConditions =
+            Maybe.andThen .conditions params
+
+        queryConditionsBool =
+            unwrap False .conditionsBool params
+
+        querySponsors =
+            Maybe.andThen .sponsors params
+
+        querySponsorsBool =
+            unwrap False .sponsorsBool params
+
+        queryEnrollment =
+            Maybe.andThen (\p -> Just p.enrollment) params
+
+        searchName =
+            Maybe.andThen .searchName params
+
+        initPhaseIds =
+            Maybe.andThen (\p -> Just p.phaseIds) params
+
+        initStudyTypeIds =
+            Maybe.andThen (\p -> Just p.studyTypeIds) params
+
+        _ =
+            Debug.log "params" params
     in
-    ( { model | queryConditions = queryStringCondition }
+    ( { model
+        | initPhaseIds = initPhaseIds
+        , initStudyTypeIds = initStudyTypeIds
+        , queryText = queryText
+        , queryTextBool = queryTextBool
+        , querySponsors = querySponsors
+        , querySponsorsBool = querySponsorsBool
+        , queryConditions = queryConditions
+        , queryConditionsBool = queryConditionsBool
+        , queryEnrollment = queryEnrollment
+        , searchName = searchName
+      }
     , Cmd.batch [ getSummary, getPhases, getStudyTypes ]
     )
 
@@ -260,8 +320,29 @@ update msg model =
         DoSearch ->
             ( { model | searchResults = RemoteData.Loading }, doSearch model )
 
-        PhasesResponse data ->
-            ( { model | phases = data }
+        PhasesResponse phases ->
+            let
+                newPhases =
+                    case phases of
+                        RemoteData.Success data ->
+                            data
+
+                        _ ->
+                            []
+
+                selectPhases initPhaseIds =
+                    List.filter
+                        (\p -> List.member p.phaseId initPhaseIds)
+                        newPhases
+
+                newSelectedPhases =
+                    unwrap [] selectPhases model.initPhaseIds
+            in
+            ( { model
+                | phases = phases
+                , querySelectedPhases = newSelectedPhases
+                , initPhaseIds = Nothing
+              }
             , Cmd.none
             )
 
@@ -301,10 +382,16 @@ update msg model =
             , Cmd.none
             )
 
+        SaveSearch ->
+            ( model, saveSearch model )
+
         SummaryResponse data ->
             ( { model | summary = data }
             , Cmd.none
             )
+
+        SavedSearchResponse data ->
+            ( model, Cmd.none )
 
         SearchResponse data ->
             ( { model | searchResults = data }
@@ -318,6 +405,11 @@ update msg model =
 
         SetQueryConditionsBool val ->
             ( { model | queryConditionsBool = val }, Cmd.none )
+
+        SetSearchName text ->
+            ( { model | searchName = strToMaybe text }
+            , Cmd.none
+            )
 
         SetSponsors text ->
             ( { model | querySponsors = strToMaybe (String.toLower text) }
@@ -345,8 +437,29 @@ update msg model =
         SetEnrollment enrollment ->
             ( { model | queryEnrollment = String.toInt enrollment }, Cmd.none )
 
-        StudyTypesResponse data ->
-            ( { model | studyTypes = data }
+        StudyTypesResponse studyTypes ->
+            let
+                newStudyTypes =
+                    case studyTypes of
+                        RemoteData.Success data ->
+                            data
+
+                        _ ->
+                            []
+
+                selectStudyTypes initStudyTypeIds =
+                    List.filter
+                        (\p -> List.member p.studyTypeId initStudyTypeIds)
+                        newStudyTypes
+
+                newSelectedStudyTypes =
+                    unwrap [] selectStudyTypes model.initStudyTypeIds
+            in
+            ( { model
+                | studyTypes = studyTypes
+                , querySelectedStudyTypes = newSelectedStudyTypes
+                , initStudyTypeIds = Nothing
+              }
             , Cmd.none
             )
 
@@ -577,6 +690,17 @@ view model =
                         ]
                     ]
                 , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Search Name" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetSearchName
+                                , value (Maybe.withDefault "" model.searchName)
+                                ]
+                            ]
+                        ]
+                    ]
+                , Form.row []
                     [ Form.col [ Col.offsetSm2, Col.sm5 ]
                         [ Button.button
                             [ Button.primary
@@ -591,6 +715,15 @@ view model =
                             , Button.attrs [ Spacing.mx1 ]
                             ]
                             [ text "Clear" ]
+                        , Button.button
+                            [ Button.secondary
+                            , Button.onClick SaveSearch
+                            , Button.attrs [ Spacing.mx1 ]
+                            , Button.disabled <|
+                                Bool.Extra.any
+                                    [ not canSearch, isNothing model.searchName ]
+                            ]
+                            [ text "Save Search" ]
                         ]
                     ]
                 ]
@@ -879,6 +1012,76 @@ doSearch model =
         }
 
 
+saveSearch : Model -> Cmd Msg
+saveSearch model =
+    let
+        searchName =
+            Url.Builder.string "search_name"
+                (Maybe.withDefault "" model.searchName)
+
+        fullText =
+            Url.Builder.string "full_text"
+                (Maybe.withDefault "" model.queryText)
+
+        fullTextBool =
+            Url.Builder.int "full_text_bool" (ifElse 1 0 model.queryTextBool)
+
+        conditions =
+            Url.Builder.string "conditions"
+                (Maybe.withDefault "" model.queryConditions)
+
+        conditionsBool =
+            Url.Builder.int "conditions_bool" (ifElse 1 0 model.queryConditionsBool)
+
+        sponsors =
+            Url.Builder.string "sponsors"
+                (Maybe.withDefault "" model.querySponsors)
+
+        sponsorsBool =
+            Url.Builder.int "sponsors_bool" (ifElse 1 0 model.querySponsorsBool)
+
+        phaseIds =
+            List.map (\p -> String.fromInt p.phaseId)
+                model.querySelectedPhases
+                |> String.join ","
+                |> Url.Builder.string "phase_ids"
+
+        studyTypeIds =
+            List.map (\s -> String.fromInt s.studyTypeId)
+                model.querySelectedStudyTypes
+                |> String.join ","
+                |> Url.Builder.string "study_type_ids"
+
+        enrollment =
+            Url.Builder.int "enrollment"
+                (Maybe.withDefault 0 model.queryEnrollment)
+
+        params =
+            Url.Builder.toQuery
+                [ searchName
+                , fullText
+                , fullTextBool
+                , conditions
+                , conditionsBool
+                , sponsors
+                , sponsorsBool
+                , phaseIds
+                , studyTypeIds
+                , enrollment
+                ]
+
+        saveSearchUrl =
+            apiServer ++ "/save_search" ++ params
+    in
+    Http.get
+        { url = saveSearchUrl
+        , expect =
+            Http.expectJson
+                (RemoteData.fromResult >> SavedSearchResponse)
+                decoderSavedSearches
+        }
+
+
 strToMaybe : String -> Maybe String
 strToMaybe s =
     case String.length s of
@@ -918,6 +1121,12 @@ decoderSummary : Decoder Summary
 decoderSummary =
     Json.Decode.succeed Summary
         |> Json.Decode.Pipeline.required "num_studies" int
+
+
+decoderSavedSearches : Decoder SavedSearches
+decoderSavedSearches =
+    Json.Decode.succeed SavedSearches
+        |> Json.Decode.Pipeline.required "num_save_searches" int
 
 
 decoderSearchResults : Decoder SearchResults

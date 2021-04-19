@@ -162,25 +162,31 @@ view model =
 
 tableConfig : Table.Config Sponsor Msg
 tableConfig =
-    let
-        linkCol : Sponsor -> Table.HtmlDetails Msg
-        linkCol sponsor =
-            Table.HtmlDetails []
-                [ a
-                    [ href
-                        (Route.routeToString
-                            (Route.Home (Just sponsor.sponsorName))
-                        )
-                    ]
-                    [ text sponsor.sponsorName ]
-                ]
-    in
+    --let
+    --    linkCol : Sponsor -> Table.HtmlDetails Msg
+    --    linkCol sponsor =
+    --        Table.HtmlDetails []
+    --            [ a
+    --                [ href
+    --                    (Route.routeToString
+    --                        (Route.Home (Just sponsor.sponsorName))
+    --                    )
+    --                ]
+    --                [ text sponsor.sponsorName ]
+    --            ]
+    --in
     Table.config
         { toId = .sponsorName
         , toMsg = SetTableState
         , columns =
             [ Table.stringColumn "Sponsor" .sponsorName
             , Table.intColumn "Num Studies" .numStudies
+
+            --, Table.veryCustomColumn
+            --    { name = "Link"
+            --    , viewData = linkCol
+            --    , sorter = Table.increasingOrDecreasingBy .sponsorName
+            --    }
             ]
         }
 
