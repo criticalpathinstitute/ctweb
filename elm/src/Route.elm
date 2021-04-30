@@ -13,6 +13,7 @@ type Route
     = Cart
     | Conditions
     | Home -- (Maybe SearchParams)
+    | SignIn
     | SavedSearches
     | Sponsors
     | Study String
@@ -30,6 +31,7 @@ routeParser =
         , Parser.map SavedSearches (s "searches")
         , Parser.map Sponsors (s "sponsors")
         , Parser.map Cart (s "cart")
+        , Parser.map SignIn (s "signin")
         , Parser.map Study (s "study" </> string)
         ]
 
@@ -83,6 +85,9 @@ routeToString page =
 
                 SavedSearches ->
                     [ "searches" ]
+
+                SignIn ->
+                    [ "signin" ]
 
                 Sponsors ->
                     [ "sponsors" ]

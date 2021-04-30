@@ -196,9 +196,6 @@ init session params =
 
         initStudyTypeIds =
             Maybe.andThen (\p -> Just p.studyTypeIds) params
-
-        _ =
-            Debug.log "params" params
     in
     ( { model
         | initPhaseIds = initPhaseIds

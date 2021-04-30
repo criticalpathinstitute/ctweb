@@ -11,18 +11,21 @@ import Html.Attributes exposing (..)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline
 import Json.Encode as Encode exposing (Value)
+import OAuth
+import OAuth.Implicit as OAuth
 import Page.Cart
 import Page.Conditions
 import Page.Home
 import Page.Searches
+import Page.SignIn
 import Page.Sponsors
 import Page.Study
 import PageView
 import Route exposing (Route)
 import Session exposing (Session)
 import State exposing (State)
-import Types exposing (SearchParams)
-import Url
+import Types exposing (SearchParams, UserInfo)
+import Url exposing (Url)
 
 
 main : Program Value Model Msg
@@ -45,6 +48,8 @@ type alias Model =
     , session : Session
     , flag : Int
     , searchParams : Maybe SearchParams
+    , flow : Flow
+    , redirectUrl : Maybe Url
     }
 
 
@@ -58,6 +63,8 @@ type Page
     = CartPage Page.Cart.Model
     | ConditionsPage Page.Conditions.Model
     | HomePage Page.Home.Model
+      -- | Redirect Session
+    | SignInPage Page.SignIn.Model
     | StudyPage String Page.Study.Model
     | SavedSearchesPage Page.Searches.Model
     | SponsorsPage Page.Sponsors.Model
@@ -69,11 +76,25 @@ type Msg
     | HomeMsg Page.Home.Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
-    | StudyMsg Page.Study.Msg
     | SavedSearchesMsg Page.Searches.InternalMsg
-    | SponsorsMsg Page.Sponsors.Msg
-    | UrlChanged Url.Url
+    | SignInMsg Page.SignIn.Msg
     | SetSearchParams SearchParams
+    | SponsorsMsg Page.Sponsors.Msg
+    | StudyMsg Page.Study.Msg
+    | UrlChanged Url.Url
+
+
+type Flow
+    = Idle
+    | Authorized OAuth.Token
+    | Done UserInfo
+    | Errored Error
+
+
+type Error
+    = ErrStateMismatch
+    | ErrAuthorization OAuth.AuthorizationError
+    | ErrHTTPGetUserInfo
 
 
 flagsDecoder : Decoder Flags
@@ -105,17 +126,23 @@ init flags url navKey =
                 Err error ->
                     Session.Guest navKey State.default CartData.empty
 
+        _ =
+            Debug.log "session" session
+
         ( navbarState, navbarCmd ) =
             Navbar.initialState NavbarMsg
 
         currentRoute =
             Route.fromUrl url
 
-        _ =
-            Debug.log "currentRoute" currentRoute
-
         ( newPage, subMsg ) =
             changeRouteTo currentRoute session Nothing
+
+        redirectUrl =
+            { url | query = Nothing, fragment = Nothing }
+
+        clearUrl =
+            Nav.replaceUrl navKey (Url.toString redirectUrl)
 
         model =
             { key = navKey
@@ -125,9 +152,53 @@ init flags url navKey =
             , session = session
             , flag = 0
             , searchParams = Nothing
+            , flow = Idle
+            , redirectUrl = Nothing
             }
     in
-    ( model, Cmd.batch [ navbarCmd, subMsg ] )
+    case OAuth.parseToken url of
+        OAuth.Empty ->
+            ( { model | flow = Idle, redirectUrl = Just redirectUrl }
+              --, Cmd.none
+            , Cmd.batch [ navbarCmd, subMsg ]
+            )
+
+        OAuth.Success { token, state } ->
+            let
+                _ =
+                    Debug.log "token" token
+
+                _ =
+                    Debug.log "state" state
+
+                --stateUrl =
+                --    { redirectUrl
+                --        | fragment =
+                --            Just
+                --                (state
+                --                    |> Maybe.withDefault ""
+                --                    |> String.append "/"
+                --                )
+                --    }
+                --newSession =
+                --    Session.setState session (State (Url.toString stateUrl))
+            in
+            --( { model | curPage = Redirect newSession }
+            --, Cmd.batch
+            --    [ -- getAccessToken "agave" code |> Http.send GotAccessToken
+            --      navbarCmd
+            --    , subMsg
+            --    ]
+            --)
+            ( model, Cmd.batch [ navbarCmd, subMsg ] )
+
+        OAuth.Error error ->
+            ( { model
+                | flow = Errored <| ErrAuthorization error
+                , redirectUrl = Just redirectUrl
+              }
+            , Cmd.batch [ clearUrl, navbarCmd, subMsg ]
+            )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -146,7 +217,9 @@ update msg model =
         ( UrlChanged url, _ ) ->
             let
                 ( newPage, newMsg ) =
-                    changeRouteTo (Route.fromUrl url) model.session model.searchParams
+                    changeRouteTo (Route.fromUrl url)
+                        model.session
+                        model.searchParams
             in
             ( { model | curPage = newPage }, newMsg )
 
@@ -189,18 +262,6 @@ update msg model =
             , Cmd.map HomeMsg newCmd
             )
 
-        ( StudyMsg subMsg, StudyPage nctId subModel ) ->
-            let
-                ( newSubModel, newCmd ) =
-                    Page.Study.update subMsg subModel
-            in
-            ( { model
-                | curPage = StudyPage nctId newSubModel
-                , session = newSubModel.session
-              }
-            , Cmd.map StudyMsg newCmd
-            )
-
         ( SavedSearchesMsg subMsg, SavedSearchesPage subModel ) ->
             let
                 ( newSubModel, newCmd ) =
@@ -211,18 +272,6 @@ update msg model =
                 , session = newSubModel.session
               }
             , Cmd.map childTranslator newCmd
-            )
-
-        ( SponsorsMsg subMsg, SponsorsPage subModel ) ->
-            let
-                ( newSubModel, newCmd ) =
-                    Page.Sponsors.update subMsg subModel
-            in
-            ( { model
-                | curPage = SponsorsPage newSubModel
-                , session = newSubModel.session
-              }
-            , Cmd.map SponsorsMsg newCmd
             )
 
         ( SetSearchParams params, _ ) ->
@@ -238,6 +287,42 @@ update msg model =
             in
             ( newModel, newMsg )
 
+        ( SignInMsg subMsg, SignInPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.SignIn.update subMsg subModel
+            in
+            ( { model
+                | curPage = SignInPage newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map SignInMsg newCmd
+            )
+
+        ( SponsorsMsg subMsg, SponsorsPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.Sponsors.update subMsg subModel
+            in
+            ( { model
+                | curPage = SponsorsPage newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map SponsorsMsg newCmd
+            )
+
+        ( StudyMsg subMsg, StudyPage nctId subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.Study.update subMsg subModel
+            in
+            ( { model
+                | curPage = StudyPage nctId newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map StudyMsg newCmd
+            )
+
         ( _, _ ) ->
             ( model, Cmd.none )
 
@@ -247,9 +332,6 @@ view model =
     let
         navConfig =
             Navbar.config NavbarMsg
-
-        _ =
-            Debug.log "searchParams" model.searchParams
     in
     case model.curPage of
         CartPage subModel ->
@@ -270,23 +352,29 @@ view model =
                 model.navbarState
                 (Html.map HomeMsg (Page.Home.view subModel))
 
-        StudyPage nctId subModel ->
-            PageView.view model.session
-                navConfig
-                model.navbarState
-                (Html.map StudyMsg (Page.Study.view subModel))
-
         SavedSearchesPage subModel ->
             PageView.view model.session
                 navConfig
                 model.navbarState
                 (Html.map childTranslator (Page.Searches.view subModel))
 
+        SignInPage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map SignInMsg (Page.SignIn.view subModel))
+
         SponsorsPage subModel ->
             PageView.view model.session
                 navConfig
                 model.navbarState
                 (Html.map SponsorsMsg (Page.Sponsors.view subModel))
+
+        StudyPage nctId subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map StudyMsg (Page.Study.view subModel))
 
 
 childTranslator : Page.Searches.Translator Msg
@@ -304,20 +392,28 @@ subscriptions model =
             Sub.map HomeMsg
                 (Page.Home.subscriptions subModel)
 
+        SignInPage subModel ->
+            Sub.map SignInMsg
+                (Page.SignIn.subscriptions subModel)
+
+        --Redirect _ ->
+        --    Sub.map GotCredentials
+        --        (Credentials.onCredentialsChange
+        --            (Decode.decodeString Credentials.decoder
+        --                >> Result.withDefault Credentials.default
+        --            )
+        --        )
         _ ->
             Sub.none
 
 
-changeRouteTo : Maybe Route -> Session -> Maybe SearchParams -> ( Page, Cmd Msg )
+changeRouteTo :
+    Maybe Route
+    -> Session
+    -> Maybe SearchParams
+    -> ( Page, Cmd Msg )
 changeRouteTo maybeRoute session params =
     case maybeRoute of
-        Just (Route.Study nctId) ->
-            let
-                ( subModel, subMsg ) =
-                    Page.Study.init session nctId
-            in
-            ( StudyPage nctId subModel, Cmd.map StudyMsg subMsg )
-
         Just Route.Cart ->
             let
                 ( subModel, subMsg ) =
@@ -346,12 +442,26 @@ changeRouteTo maybeRoute session params =
             in
             ( SavedSearchesPage subModel, Cmd.map childTranslator subMsg )
 
+        Just Route.SignIn ->
+            let
+                ( subModel, subMsg ) =
+                    Page.SignIn.init session
+            in
+            ( SignInPage subModel, Cmd.map SignInMsg subMsg )
+
         Just Route.Sponsors ->
             let
                 ( subModel, subMsg ) =
                     Page.Sponsors.init session
             in
             ( SponsorsPage subModel, Cmd.map SponsorsMsg subMsg )
+
+        Just (Route.Study nctId) ->
+            let
+                ( subModel, subMsg ) =
+                    Page.Study.init session nctId
+            in
+            ( StudyPage nctId subModel, Cmd.map StudyMsg subMsg )
 
         _ ->
             let

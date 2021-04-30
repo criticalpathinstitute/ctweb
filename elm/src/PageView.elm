@@ -63,6 +63,10 @@ view session navConfig navbarState content =
                         ]
                         [ text "Searches" ]
                     , Navbar.itemLink
+                        [ Route.href Route.SignIn
+                        ]
+                        [ text "Sign In" ]
+                    , Navbar.itemLink
                         [ Route.href Route.Cart
                         , target "_blank"
                         ]

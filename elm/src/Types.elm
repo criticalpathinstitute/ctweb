@@ -13,3 +13,9 @@ type alias SearchParams =
     , studyTypeIds : List Int
     , enrollment : Int
     }
+
+
+type alias UserInfo =
+    { name : String
+    , picture : String
+    }

@@ -34,6 +34,14 @@
       //    console.log("storeCredentials: ", session);
       //    localStorage.setItem(CRED_COOKIE_NAME, JSON.stringify(session));
       //});
+
+      app.ports.genRandomBytes.subscribe(n => {
+       const buffer = new Uint8Array(n);
+       crypto.getRandomValues(buffer);
+       const bytes = Array.from(buffer);
+       localStorage.setItem("bytes", bytes);
+       app.ports.randomBytes.send(bytes);
+     });
     </script>
   </body>
 </html>
