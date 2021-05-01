@@ -12,7 +12,7 @@ import Url.Parser.Query as Query
 type Route
     = Cart
     | Conditions
-    | Home -- (Maybe SearchParams)
+    | Home
     | SignIn
     | SavedSearches
     | Sponsors

@@ -8,6 +8,7 @@ import Config
 import Credentials exposing (Credentials)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline
 import Json.Encode as Encode exposing (Value)
@@ -56,6 +57,7 @@ type alias Model =
 type alias Flags =
     { cart : Maybe CartData.Cart
     , cred : Maybe Credentials
+    , bytes : Maybe Page.SignIn.State
     }
 
 
@@ -73,6 +75,7 @@ type Page
 type Msg
     = CartMsg Page.Cart.Msg
     | ConditionsMsg Page.Conditions.Msg
+    | GotUserInfo (Result Http.Error UserInfo)
     | HomeMsg Page.Home.Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
@@ -82,6 +85,7 @@ type Msg
     | SponsorsMsg Page.Sponsors.Msg
     | StudyMsg Page.Study.Msg
     | UrlChanged Url.Url
+    | UserInfoRequested
 
 
 type Flow
@@ -104,11 +108,75 @@ flagsDecoder =
             (Decode.nullable CartData.decoder)
         |> Json.Decode.Pipeline.required "cred"
             (Decode.nullable Credentials.decoder)
+        |> Json.Decode.Pipeline.required "bytes"
+            (Decode.nullable Page.SignIn.decoder)
 
 
 init : Value -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
+        ( navbarState, navbarCmd ) =
+            Navbar.initialState NavbarMsg
+
+        currentRoute =
+            Route.fromUrl url
+
+        ( newPage, subMsg ) =
+            changeRouteTo currentRoute session Nothing
+
+        redirectUrl =
+            { url | query = Nothing, fragment = Nothing }
+
+        clearUrl =
+            Nav.replaceUrl navKey (Url.toString redirectUrl)
+
+        ( storedCart, bytes ) =
+            case Decode.decodeValue flagsDecoder flags of
+                Ok f ->
+                    ( f.cart |> Maybe.withDefault CartData.empty, f.bytes )
+
+                _ ->
+                    ( CartData.empty, Nothing )
+
+        ( newFlow, flowRedirectUri, cmd ) =
+            case OAuth.parseToken url of
+                OAuth.Empty ->
+                    ( Idle, redirectUrl, clearUrl )
+
+                OAuth.Success { token, state } ->
+                    --let
+                    --_ =
+                    --    Debug.log "token" token
+                    --_ =
+                    --    Debug.log "state" state
+                    --newSession =
+                    --    Session.setState session (State (Url.toString stateUrl))
+                    -- in
+                    case bytes of
+                        Nothing ->
+                            ( Errored ErrStateMismatch, redirectUrl, clearUrl )
+
+                        Just b ->
+                            if state /= Just b.state then
+                                ( Errored ErrStateMismatch, redirectUrl, clearUrl )
+
+                            else
+                                ( Authorized token
+                                , redirectUrl
+                                , clearUrl
+                                  -- Cmd.map UserInfoRequested
+                                )
+
+                OAuth.Error error ->
+                    ( Errored <| ErrAuthorization error
+                    , redirectUrl
+                    , clearUrl
+                    )
+
+        --_ =
+        --    Debug.log "flow" flow
+        --_ =
+        --    Debug.log "flowRedirectUri" flowRedirectUri
         session =
             case Decode.decodeValue flagsDecoder flags of
                 Ok f ->
@@ -126,24 +194,6 @@ init flags url navKey =
                 Err error ->
                     Session.Guest navKey State.default CartData.empty
 
-        _ =
-            Debug.log "session" session
-
-        ( navbarState, navbarCmd ) =
-            Navbar.initialState NavbarMsg
-
-        currentRoute =
-            Route.fromUrl url
-
-        ( newPage, subMsg ) =
-            changeRouteTo currentRoute session Nothing
-
-        redirectUrl =
-            { url | query = Nothing, fragment = Nothing }
-
-        clearUrl =
-            Nav.replaceUrl navKey (Url.toString redirectUrl)
-
         model =
             { key = navKey
             , url = url
@@ -152,57 +202,53 @@ init flags url navKey =
             , session = session
             , flag = 0
             , searchParams = Nothing
-            , flow = Idle
+            , flow = newFlow
             , redirectUrl = Nothing
             }
     in
-    case OAuth.parseToken url of
-        OAuth.Empty ->
-            ( { model | flow = Idle, redirectUrl = Just redirectUrl }
-              --, Cmd.none
-            , Cmd.batch [ navbarCmd, subMsg ]
-            )
+    ( model, Cmd.batch [ navbarCmd, subMsg ] )
 
-        OAuth.Success { token, state } ->
-            let
-                _ =
-                    Debug.log "token" token
 
-                _ =
-                    Debug.log "state" state
 
-                --stateUrl =
-                --    { redirectUrl
-                --        | fragment =
-                --            Just
-                --                (state
-                --                    |> Maybe.withDefault ""
-                --                    |> String.append "/"
-                --                )
-                --    }
-                --newSession =
-                --    Session.setState session (State (Url.toString stateUrl))
-            in
-            --( { model | curPage = Redirect newSession }
-            --, Cmd.batch
-            --    [ -- getAccessToken "agave" code |> Http.send GotAccessToken
-            --      navbarCmd
-            --    , subMsg
-            --    ]
-            --)
-            ( model, Cmd.batch [ navbarCmd, subMsg ] )
-
-        OAuth.Error error ->
-            ( { model
-                | flow = Errored <| ErrAuthorization error
-                , redirectUrl = Just redirectUrl
-              }
-            , Cmd.batch [ clearUrl, navbarCmd, subMsg ]
-            )
+--case OAuth.parseToken url of
+--    OAuth.Empty ->
+--        ( { model | flow = Idle, redirectUrl = Just redirectUrl }
+--        , Cmd.batch [ navbarCmd, subMsg ]
+--        )
+--    OAuth.Success { token, state } ->
+--        --let
+--        --_ =
+--        --    Debug.log "token" token
+--        --_ =
+--        --    Debug.log "state" state
+--        --_ =
+--        --    Debug.log "bytes"
+--        --newSession =
+--        --    Session.setState session (State (Url.toString stateUrl))
+--        --in
+--        --( { model | curPage = Redirect newSession }
+--        --, Cmd.batch
+--        --    [ -- getAccessToken "agave" code |> Http.send GotAccessToken
+--        --      navbarCmd
+--        --    , subMsg
+--        --    ]
+--        --)
+--        ( model, Cmd.batch [ navbarCmd, subMsg ] )
+--    OAuth.Error error ->
+--        ( { model
+--            | flow = Errored <| ErrAuthorization error
+--            , redirectUrl = Just redirectUrl
+--          }
+--        , Cmd.batch [ clearUrl, navbarCmd, subMsg ]
+--        )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        _ =
+            Debug.log "model.flow" model.flow
+    in
     case ( msg, model.curPage ) of
         ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
@@ -322,6 +368,28 @@ update msg model =
               }
             , Cmd.map StudyMsg newCmd
             )
+
+        ( GotUserInfo userInfoResponse, _ ) ->
+            case userInfoResponse of
+                Err _ ->
+                    ( { model | flow = Errored ErrHTTPGetUserInfo }
+                    , Cmd.none
+                    )
+
+                Ok userInfo ->
+                    ( { model | flow = Done userInfo }
+                    , Cmd.none
+                    )
+
+        ( UserInfoRequested, _ ) ->
+            case model.flow of
+                Authorized token ->
+                    ( model
+                    , getUserInfo Page.SignIn.configuration token
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         ( _, _ ) ->
             ( model, Cmd.none )
@@ -444,6 +512,9 @@ changeRouteTo maybeRoute session params =
 
         Just Route.SignIn ->
             let
+                --redirectUri =
+                --    Url.fromString
+                --        (Config.serverAddress ++ Route.routeToString Route.Home)
                 ( subModel, subMsg ) =
                     Page.SignIn.init session
             in
@@ -469,3 +540,16 @@ changeRouteTo maybeRoute session params =
                     Page.Home.init session Nothing
             in
             ( HomePage subModel, Cmd.map HomeMsg subMsg )
+
+
+getUserInfo : Page.SignIn.Configuration -> OAuth.Token -> Cmd Msg
+getUserInfo configuration token =
+    Http.request
+        { method = "GET"
+        , body = Http.emptyBody
+        , headers = OAuth.useToken token []
+        , url = Url.toString configuration.userInfoEndpoint
+        , expect = Http.expectJson GotUserInfo configuration.userInfoDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }

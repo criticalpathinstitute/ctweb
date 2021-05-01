@@ -1,4 +1,4 @@
-port module Page.SignIn exposing (Model, Msg, init, subscriptions, update, view)
+port module Page.SignIn exposing (..)
 
 import Base64.Encode as Base64
 import Bootstrap.Button as Button
@@ -20,7 +20,7 @@ import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import OAuth
 import OAuth.Implicit as OAuth
 import RemoteData exposing (RemoteData, WebData)
-import Route
+import Route exposing (Route)
 import Session exposing (Session)
 import Types exposing (UserInfo)
 import Url exposing (Protocol(..), Url)
@@ -30,7 +30,7 @@ import Url.Builder
 type alias Model =
     { session : Session
     , flow : Flow
-    , redirectUrl : Maybe Url
+    , redirectUri : Url
     }
 
 
@@ -41,6 +41,10 @@ type alias Configuration =
     , clientId : String
     , scope : List String
     }
+
+
+type alias State =
+    { state : String }
 
 
 type Msg
@@ -68,11 +72,30 @@ type Error
 
 init : Session -> ( Model, Cmd Msg )
 init session =
-    ( { session = session, flow = Idle, redirectUrl = Nothing }, Cmd.none )
+    let
+        redirectUri =
+            { defaultHttpUrl
+                | host = "localhost:8001"
+                , path = "/#/signin"
+            }
+
+        _ =
+            Debug.log "redirectUri" (Url.toString redirectUri)
+    in
+    ( { session = session, flow = Idle, redirectUri = redirectUri }
+    , Cmd.none
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        _ =
+            Debug.log "flow" model.flow
+
+        _ =
+            Debug.log "msg" msg
+    in
     case ( model.flow, msg ) of
         ( Idle, SignInRequested ) ->
             signInRequested model
@@ -80,10 +103,13 @@ update msg model =
         ( Idle, GotRandomBytes bytes ) ->
             gotRandomBytes model bytes
 
-        ( Authorized token, UserInfoRequested ) ->
-            userInfoRequested model token
-
+        --( Authorized token, UserInfoRequested ) ->
+        --    userInfoRequested model token
         ( Authorized _, GotUserInfo userInfoResponse ) ->
+            let
+                _ =
+                    Debug.log "userInfo" userInfoResponse
+            in
             gotUserInfo model userInfoResponse
 
         ( Done _, SignOutRequested ) ->
@@ -93,24 +119,23 @@ update msg model =
             ( model, Cmd.none )
 
 
-
---subscriptions : Model -> Sub Msg
---subscriptions model =
--- subscriptions : Sub Msg
-
-
 subscriptions =
     always <| randomBytes GotRandomBytes
 
 
-getUserInfo : Configuration -> OAuth.Token -> Cmd Msg
-getUserInfo { userInfoDecoder, userInfoEndpoint } token =
+
+--getUserInfo : Configuration -> OAuth.Token -> Cmd Msg
+--getUserInfo { userInfoDecoder, userInfoEndpoint } token =
+
+
+getUserInfo : OAuth.Token -> Cmd Msg
+getUserInfo token =
     Http.request
         { method = "GET"
         , body = Http.emptyBody
         , headers = OAuth.useToken token []
-        , url = Url.toString userInfoEndpoint
-        , expect = Http.expectJson GotUserInfo userInfoDecoder
+        , url = Url.toString configuration.userInfoEndpoint
+        , expect = Http.expectJson GotUserInfo configuration.userInfoDecoder
         , timeout = Nothing
         , tracker = Nothing
         }
@@ -127,27 +152,38 @@ configuration : Configuration
 configuration =
     { authorizationEndpoint =
         { defaultHttpsUrl
-            | host = "accounts.google.com"
-            , path = "/o/oauth2/v2/auth"
+            | host = "criticalpathinst.us.auth0.com"
+            , path = "/authorize"
         }
     , userInfoEndpoint =
         { defaultHttpsUrl
-            | host = "www.googleapis.com"
-            , path = "/oauth2/v1/userinfo"
+            | host = "criticalpathinst.us.auth0.com"
+            , path = "/userinfo"
         }
     , userInfoDecoder =
         Json.Decode.map2 UserInfo
             (Json.Decode.field "name" Json.Decode.string)
             (Json.Decode.field "picture" Json.Decode.string)
-    , clientId = "" -- Get this
+    , clientId = "WtqPTRMEOWroj4izPpM6cTbUBES1GtHI"
     , scope =
-        [ "profile" ]
+        [ "profile", "openid" ]
     }
 
 
 defaultHttpsUrl : Url
 defaultHttpsUrl =
     { protocol = Https
+    , host = ""
+    , path = ""
+    , port_ = Nothing
+    , query = Nothing
+    , fragment = Nothing
+    }
+
+
+defaultHttpUrl : Url
+defaultHttpUrl =
+    { protocol = Http
     , host = ""
     , path = ""
     , port_ = Nothing
@@ -165,36 +201,32 @@ signInRequested model =
 
 gotRandomBytes : Model -> List Int -> ( Model, Cmd Msg )
 gotRandomBytes model bytes =
-    case model.redirectUrl of
-        Just url ->
-            let
-                { state } =
-                    convertBytes bytes
+    let
+        state =
+            convertBytes bytes
 
-                authorization =
-                    { clientId = configuration.clientId
-                    , redirectUri = url
-                    , scope = configuration.scope
-                    , state = Just state
-                    , url = configuration.authorizationEndpoint
-                    }
-            in
-            ( { model | flow = Idle }
-            , authorization
-                |> OAuth.makeAuthorizationUrl
-                |> Url.toString
-                |> Navigation.load
-            )
-
-        _ ->
-            ( model, Cmd.none )
-
-
-userInfoRequested : Model -> OAuth.Token -> ( Model, Cmd Msg )
-userInfoRequested model token =
-    ( { model | flow = Authorized token }
-    , getUserInfo configuration token
+        authorization =
+            { clientId = configuration.clientId
+            , redirectUri = model.redirectUri
+            , scope = configuration.scope
+            , state = Just state
+            , url = configuration.authorizationEndpoint
+            }
+    in
+    ( { model | flow = Idle }
+    , authorization
+        |> OAuth.makeAuthorizationUrl
+        |> Url.toString
+        |> Navigation.load
     )
+
+
+
+--userInfoRequested : Model -> OAuth.Token -> ( Model, Cmd Msg )
+--userInfoRequested model token =
+--    ( { model | flow = Authorized token }
+--    , getUserInfo configuration token
+--    )
 
 
 gotUserInfo : Model -> Result Http.Error UserInfo -> ( Model, Cmd Msg )
@@ -213,12 +245,9 @@ gotUserInfo model userInfoResponse =
 
 signOutRequested : Model -> ( Model, Cmd Msg )
 signOutRequested model =
-    case model.redirectUrl of
-        Just url ->
-            ( { model | flow = Idle }, Navigation.load (Url.toString url) )
-
-        _ ->
-            ( model, Cmd.none )
+    ( { model | flow = Idle }
+    , Navigation.load (Url.toString model.redirectUri)
+    )
 
 
 toBytes : List Int -> Bytes
@@ -226,14 +255,17 @@ toBytes =
     List.map Bytes.unsignedInt8 >> Bytes.sequence >> Bytes.encode
 
 
-base64 : Bytes -> String
-base64 =
-    Base64.bytes >> Base64.encode
-
-
-convertBytes : List Int -> { state : String }
+convertBytes : List Int -> String
 convertBytes =
-    toBytes >> base64 >> (\state -> { state = state })
+    toBytes >> Base64.bytes >> Base64.encode
+
+
+decoder : Decoder State
+decoder =
+    Json.Decode.succeed State
+        |> optional "bytes"
+            (Json.Decode.list Json.Decode.int |> Json.Decode.map convertBytes)
+            ""
 
 
 
@@ -267,16 +299,16 @@ view : Model -> Html Msg
 view model =
     let
         config =
-            { title = "Google - Flow: Implicit"
-            , btnClass = class "btn-google"
+            { title = "Auth0"
+            , btnClass = class "btn-auth0"
             }
     in
-    div [] (viewBody config model)
+    viewBody config model
 
 
-viewBody : ViewConfiguration Msg -> Model -> List (Html Msg)
+viewBody : ViewConfiguration Msg -> Model -> Html Msg
 viewBody config model =
-    [ div [ class "flex", class "flex-column", class "flex-space-around" ] <|
+    div [ class "flex", class "flex-column", class "flex-space-around" ] <|
         case model.flow of
             Idle ->
                 div [ class "flex" ]
@@ -307,7 +339,6 @@ viewBody config model =
                     [ viewErroredStep
                     ]
                     :: viewErrored err
-    ]
 
 
 viewIdle : ViewConfiguration Msg -> List (Html Msg)
