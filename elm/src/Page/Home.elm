@@ -283,7 +283,7 @@ update msg model =
         CartMsg subMsg ->
             let
                 cart =
-                    Session.getCart model.session
+                    model.session.cart
 
                 updateCart =
                     case subMsg of
@@ -739,7 +739,7 @@ view model =
                 RemoteData.Success data ->
                     let
                         cart =
-                            Session.getCart model.session
+                            model.session.cart
 
                         title =
                             "Showing "

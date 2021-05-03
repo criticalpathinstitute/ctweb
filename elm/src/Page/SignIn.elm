@@ -22,14 +22,14 @@ import OAuth.Implicit as OAuth
 import RemoteData exposing (RemoteData, WebData)
 import Route exposing (Route)
 import Session exposing (Session)
-import Types exposing (UserInfo)
+import Types exposing (Flow(..), FlowError(..))
 import Url exposing (Protocol(..), Url)
 import Url.Builder
+import User exposing (User)
 
 
 type alias Model =
     { session : Session
-    , flow : Flow
     , redirectUri : Url
     }
 
@@ -37,7 +37,7 @@ type alias Model =
 type alias Configuration =
     { authorizationEndpoint : Url
     , userInfoEndpoint : Url
-    , userInfoDecoder : Decoder UserInfo
+    , userInfoDecoder : Decoder User
     , clientId : String
     , scope : List String
     }
@@ -53,21 +53,8 @@ type Msg
     | GotRandomBytes (List Int)
     | GotAccessToken (Result Http.Error OAuth.AuthorizationSuccess)
     | UserInfoRequested
-    | GotUserInfo (Result Http.Error UserInfo)
+    | GotUserInfo (Result Http.Error User)
     | SignOutRequested
-
-
-type Flow
-    = Idle
-    | Authorized OAuth.Token
-    | Done UserInfo
-    | Errored Error
-
-
-type Error
-    = ErrStateMismatch
-    | ErrAuthorization OAuth.AuthorizationError
-    | ErrHTTPGetUserInfo
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -82,7 +69,7 @@ init session =
         _ =
             Debug.log "redirectUri" (Url.toString redirectUri)
     in
-    ( { session = session, flow = Idle, redirectUri = redirectUri }
+    ( { session = session, redirectUri = redirectUri }
     , Cmd.none
     )
 
@@ -91,12 +78,12 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
         _ =
-            Debug.log "flow" model.flow
+            Debug.log ">>> flow" model.session.flow
 
         _ =
-            Debug.log "msg" msg
+            Debug.log ">>> msg" msg
     in
-    case ( model.flow, msg ) of
+    case ( model.session.flow, msg ) of
         ( Idle, SignInRequested ) ->
             signInRequested model
 
@@ -160,10 +147,7 @@ configuration =
             | host = "criticalpathinst.us.auth0.com"
             , path = "/userinfo"
         }
-    , userInfoDecoder =
-        Json.Decode.map2 UserInfo
-            (Json.Decode.field "name" Json.Decode.string)
-            (Json.Decode.field "picture" Json.Decode.string)
+    , userInfoDecoder = User.userDecoder
     , clientId = "WtqPTRMEOWroj4izPpM6cTbUBES1GtHI"
     , scope =
         [ "profile", "openid" ]
@@ -194,7 +178,7 @@ defaultHttpUrl =
 
 signInRequested : Model -> ( Model, Cmd Msg )
 signInRequested model =
-    ( { model | flow = Idle }
+    ( model
     , genRandomBytes 16
     )
 
@@ -213,7 +197,7 @@ gotRandomBytes model bytes =
             , url = configuration.authorizationEndpoint
             }
     in
-    ( { model | flow = Idle }
+    ( model
     , authorization
         |> OAuth.makeAuthorizationUrl
         |> Url.toString
@@ -229,23 +213,26 @@ gotRandomBytes model bytes =
 --    )
 
 
-gotUserInfo : Model -> Result Http.Error UserInfo -> ( Model, Cmd Msg )
+gotUserInfo : Model -> Result Http.Error User -> ( Model, Cmd Msg )
 gotUserInfo model userInfoResponse =
     case userInfoResponse of
         Err _ ->
-            ( { model | flow = Errored ErrHTTPGetUserInfo }
+            -- ( { model | flow = Errored ErrHTTPGetUserInfo }
+            ( model
             , Cmd.none
             )
 
         Ok userInfo ->
-            ( { model | flow = Done userInfo }
+            -- ( { model | flow = Done userInfo }
+            ( model
             , Cmd.none
             )
 
 
 signOutRequested : Model -> ( Model, Cmd Msg )
 signOutRequested model =
-    ( { model | flow = Idle }
+    -- ( { model | flow = Idle }
+    ( model
     , Navigation.load (Url.toString model.redirectUri)
     )
 
@@ -309,7 +296,7 @@ view model =
 viewBody : ViewConfiguration Msg -> Model -> Html Msg
 viewBody config model =
     div [ class "flex", class "flex-column", class "flex-space-around" ] <|
-        case model.flow of
+        case model.session.flow of
             Idle ->
                 div [ class "flex" ]
                     [ viewAuthorizationStep False
@@ -355,7 +342,7 @@ viewAuthorized =
     ]
 
 
-viewUserInfo : ViewConfiguration Msg -> UserInfo -> List (Html Msg)
+viewUserInfo : ViewConfiguration Msg -> User -> List (Html Msg)
 viewUserInfo { btnClass } { name, picture } =
     [ div [ class "flex", class "flex-column" ]
         [ img [ class "avatar", src picture ] []
@@ -369,12 +356,12 @@ viewUserInfo { btnClass } { name, picture } =
     ]
 
 
-viewErrored : Error -> List (Html Msg)
+viewErrored : FlowError -> List (Html Msg)
 viewErrored error =
     [ span [ class "span-error" ] [ viewError error ] ]
 
 
-viewError : Error -> Html Msg
+viewError : FlowError -> Html Msg
 viewError e =
     text <|
         case e of

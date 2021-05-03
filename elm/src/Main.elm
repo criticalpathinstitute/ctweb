@@ -23,10 +23,11 @@ import Page.Sponsors
 import Page.Study
 import PageView
 import Route exposing (Route)
-import Session exposing (Session)
+import Session exposing (Session, SessionUser(..))
 import State exposing (State)
-import Types exposing (SearchParams, UserInfo)
+import Types exposing (Flow(..), FlowError(..), SearchParams)
 import Url exposing (Url)
+import User exposing (User)
 
 
 main : Program Value Model Msg
@@ -75,7 +76,7 @@ type Page
 type Msg
     = CartMsg Page.Cart.Msg
     | ConditionsMsg Page.Conditions.Msg
-    | GotUserInfo (Result Http.Error UserInfo)
+    | GotUserInfo (Result Http.Error User)
     | HomeMsg Page.Home.Msg
     | LinkClicked Browser.UrlRequest
     | NavbarMsg Navbar.State
@@ -86,19 +87,6 @@ type Msg
     | StudyMsg Page.Study.Msg
     | UrlChanged Url.Url
     | UserInfoRequested
-
-
-type Flow
-    = Idle
-    | Authorized OAuth.Token
-    | Done UserInfo
-    | Errored Error
-
-
-type Error
-    = ErrStateMismatch
-    | ErrAuthorization OAuth.AuthorizationError
-    | ErrHTTPGetUserInfo
 
 
 flagsDecoder : Decoder Flags
@@ -158,13 +146,15 @@ init flags url navKey =
 
                         Just b ->
                             if state /= Just b.state then
-                                ( Errored ErrStateMismatch, redirectUrl, clearUrl )
+                                ( Errored ErrStateMismatch
+                                , redirectUrl
+                                , clearUrl
+                                )
 
                             else
                                 ( Authorized token
                                 , redirectUrl
-                                , clearUrl
-                                  -- Cmd.map UserInfoRequested
+                                , getUserInfo Page.SignIn.configuration token
                                 )
 
                 OAuth.Error error ->
@@ -173,8 +163,9 @@ init flags url navKey =
                     , clearUrl
                     )
 
-        --_ =
-        --    Debug.log "flow" flow
+        _ =
+            Debug.log "newFlow" newFlow
+
         --_ =
         --    Debug.log "flowRedirectUri" flowRedirectUri
         session =
@@ -183,16 +174,19 @@ init flags url navKey =
                     let
                         cart =
                             f.cart |> Maybe.withDefault CartData.empty
-                    in
-                    case f.cred of
-                        Just cred ->
-                            Session.LoggedIn navKey State.default cart cred
 
-                        Nothing ->
-                            Session.Guest navKey State.default cart
+                        ( cred, user ) =
+                            case f.cred of
+                                Just c ->
+                                    ( Just c, Session.Guest )
+
+                                _ ->
+                                    ( Nothing, Session.Guest )
+                    in
+                    Session navKey State.default cart newFlow cred user
 
                 Err error ->
-                    Session.Guest navKey State.default CartData.empty
+                    Session navKey State.default CartData.empty newFlow Nothing Session.Guest
 
         model =
             { key = navKey
@@ -206,7 +200,7 @@ init flags url navKey =
             , redirectUrl = Nothing
             }
     in
-    ( model, Cmd.batch [ navbarCmd, subMsg ] )
+    ( model, Cmd.batch [ navbarCmd, subMsg, cmd ] )
 
 
 
@@ -248,6 +242,9 @@ update msg model =
     let
         _ =
             Debug.log "model.flow" model.flow
+
+        _ =
+            Debug.log "msg" msg
     in
     case ( msg, model.curPage ) of
         ( LinkClicked urlRequest, _ ) ->
@@ -377,19 +374,13 @@ update msg model =
                     )
 
                 Ok userInfo ->
-                    ( { model | flow = Done userInfo }
+                    let
+                        newSession =
+                            Session.setUser model.session (LoggedIn userInfo)
+                    in
+                    ( { model | flow = Done userInfo, session = newSession }
                     , Cmd.none
                     )
-
-        ( UserInfoRequested, _ ) ->
-            case model.flow of
-                Authorized token ->
-                    ( model
-                    , getUserInfo Page.SignIn.configuration token
-                    )
-
-                _ ->
-                    ( model, Cmd.none )
 
         ( _, _ ) ->
             ( model, Cmd.none )

@@ -43,7 +43,7 @@ init : Session -> ( Model, Cmd Msg )
 init session =
     let
         idList =
-            Cart.toList (Session.getCart session)
+            Cart.toList session.cart
 
         ( cmds, studies ) =
             if List.length idList > 0 then
@@ -124,7 +124,7 @@ update msg model =
         CartMsg subMsg ->
             let
                 newCart =
-                    Cart.update subMsg (Session.getCart model.session)
+                    Cart.update subMsg model.session.cart
 
                 newSession =
                     Session.setCart model.session newCart
@@ -136,7 +136,7 @@ update msg model =
         DownloadStudies ->
             let
                 idList =
-                    Cart.toList (Session.getCart model.session)
+                    Cart.toList model.session.cart
 
                 studyIds =
                     String.join "," <|
@@ -356,7 +356,7 @@ view : Model -> Html Msg
 view model =
     let
         cart =
-            Session.getCart model.session
+            model.session.cart
 
         studies =
             case model.studies of

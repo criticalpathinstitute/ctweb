@@ -118,7 +118,7 @@ update msg model =
         CartMsg subMsg ->
             let
                 cart =
-                    Session.getCart model.session
+                    model.session.cart
 
                 updateCart =
                     case subMsg of
@@ -180,7 +180,7 @@ view model =
                 RemoteData.Success study ->
                     let
                         cart =
-                            Session.getCart model.session
+                            model.session.cart
 
                         cartButton =
                             Cart.addToCartButton cart study.studyId

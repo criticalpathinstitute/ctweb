@@ -20,7 +20,7 @@ view session navConfig navbarState content =
         cartButton =
             let
                 cartSize =
-                    Cart.size (Session.getCart session)
+                    Cart.size session.cart
 
                 label =
                     if cartSize == 0 then
