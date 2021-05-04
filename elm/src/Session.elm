@@ -33,6 +33,11 @@ setUser session user =
     { session | user = user }
 
 
+logout : Session -> Session
+logout session =
+    { session | cred = Nothing, user = Guest }
+
+
 
 --type Session
 --    = LoggedIn Nav.Key State Cart Flow Credentials

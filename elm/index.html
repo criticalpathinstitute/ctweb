@@ -39,10 +39,10 @@
         }
       });
 
-      //app.ports.storeCredentials.subscribe(function(session) {
-      //    console.log("storeCredentials: ", session);
-      //    localStorage.setItem(CRED_COOKIE_NAME, JSON.stringify(session));
-      //});
+      app.ports.storeCredentials.subscribe(function(session) {
+          console.log("storeCredentials: ", session);
+          localStorage.setItem(CRED_COOKIE_NAME, JSON.stringify(session));
+      });
 
       app.ports.genRandomBytes.subscribe(n => {
         const buffer = new Uint8Array(n);

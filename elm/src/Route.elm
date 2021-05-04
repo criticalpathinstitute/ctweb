@@ -13,6 +13,7 @@ type Route
     = Cart
     | Conditions
     | Home
+    | Profile
     | SignIn
     | SavedSearches
     | Sponsors
@@ -26,12 +27,13 @@ type Route
 routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
-        [ Parser.map Home (s "search")
+        [ Parser.map Cart (s "cart")
         , Parser.map Conditions (s "conditions")
+        , Parser.map Home (s "search")
+        , Parser.map Profile (s "profile")
         , Parser.map SavedSearches (s "searches")
-        , Parser.map Sponsors (s "sponsors")
-        , Parser.map Cart (s "cart")
         , Parser.map SignIn (s "signin")
+        , Parser.map Sponsors (s "sponsors")
         , Parser.map Study (s "study" </> string)
         ]
 
@@ -78,8 +80,9 @@ routeToString page =
                 Home ->
                     [ "search" ]
 
-                --Home (Just params) ->
-                --    =" ++ condition ], [ "search" ] )
+                Profile ->
+                    [ "profile" ]
+
                 Study nctId ->
                     [ "study", nctId ]
 

@@ -11,7 +11,7 @@ import Html exposing (Html, a, div, img, input, span, text)
 import Html.Attributes exposing (class, href, placeholder, src, style, target)
 import Icon
 import Route exposing (Route)
-import Session exposing (Session)
+import Session exposing (Session, SessionUser(..))
 
 
 view : Session -> Navbar.Config msg -> Navbar.State -> Html msg -> Document msg
@@ -34,6 +34,14 @@ view session navConfig navbarState content =
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
                 ]
+
+        ( profileRoute, profileText ) =
+            case session.user of
+                Guest ->
+                    ( Route.SignIn, "Sign In" )
+
+                LoggedIn user ->
+                    ( Route.Profile, "Profile" )
 
         nav =
             navConfig
@@ -63,9 +71,9 @@ view session navConfig navbarState content =
                         ]
                         [ text "Searches" ]
                     , Navbar.itemLink
-                        [ Route.href Route.SignIn
+                        [ Route.href profileRoute
                         ]
-                        [ text "Sign In" ]
+                        [ text profileText ]
                     , Navbar.itemLink
                         [ Route.href Route.Cart
                         , target "_blank"

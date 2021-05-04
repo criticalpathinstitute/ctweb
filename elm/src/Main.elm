@@ -118,13 +118,47 @@ init flags url navKey =
         clearUrl =
             Nav.replaceUrl navKey (Url.toString redirectUrl)
 
-        ( storedCart, bytes ) =
+        ( session, bytes ) =
             case Decode.decodeValue flagsDecoder flags of
                 Ok f ->
-                    ( f.cart |> Maybe.withDefault CartData.empty, f.bytes )
+                    let
+                        ( storedCred, storedUser ) =
+                            case f.cred of
+                                Just c ->
+                                    let
+                                        user =
+                                            case c.user of
+                                                Just u ->
+                                                    Session.LoggedIn u
+
+                                                _ ->
+                                                    Session.Guest
+                                    in
+                                    ( Just c, user )
+
+                                _ ->
+                                    ( Nothing, Session.Guest )
+                    in
+                    ( Session
+                        navKey
+                        State.default
+                        (Maybe.withDefault CartData.empty f.cart)
+                        Idle
+                        (Just (Maybe.withDefault Credentials.default storedCred))
+                        storedUser
+                    , f.bytes
+                    )
 
                 _ ->
-                    ( CartData.empty, Nothing )
+                    ( Session
+                        navKey
+                        State.default
+                        CartData.empty
+                        Idle
+                        (Just Credentials.default)
+                        Session.Guest
+                    , Nothing
+                    )
 
         ( newFlow, flowRedirectUri, cmd ) =
             case OAuth.parseToken url of
@@ -132,14 +166,6 @@ init flags url navKey =
                     ( Idle, redirectUrl, clearUrl )
 
                 OAuth.Success { token, state } ->
-                    --let
-                    --_ =
-                    --    Debug.log "token" token
-                    --_ =
-                    --    Debug.log "state" state
-                    --newSession =
-                    --    Session.setState session (State (Url.toString stateUrl))
-                    -- in
                     case bytes of
                         Nothing ->
                             ( Errored ErrStateMismatch, redirectUrl, clearUrl )
@@ -163,37 +189,12 @@ init flags url navKey =
                     , clearUrl
                     )
 
-        _ =
-            Debug.log "newFlow" newFlow
-
-        --_ =
-        --    Debug.log "flowRedirectUri" flowRedirectUri
-        session =
-            case Decode.decodeValue flagsDecoder flags of
-                Ok f ->
-                    let
-                        cart =
-                            f.cart |> Maybe.withDefault CartData.empty
-
-                        ( cred, user ) =
-                            case f.cred of
-                                Just c ->
-                                    ( Just c, Session.Guest )
-
-                                _ ->
-                                    ( Nothing, Session.Guest )
-                    in
-                    Session navKey State.default cart newFlow cred user
-
-                Err error ->
-                    Session navKey State.default CartData.empty newFlow Nothing Session.Guest
-
         model =
             { key = navKey
             , url = url
             , curPage = newPage
             , navbarState = navbarState
-            , session = session
+            , session = { session | flow = newFlow }
             , flag = 0
             , searchParams = Nothing
             , flow = newFlow
@@ -239,13 +240,12 @@ init flags url navKey =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        _ =
-            Debug.log "model.flow" model.flow
-
-        _ =
-            Debug.log "msg" msg
-    in
+    --let
+    --    _ =
+    --        Debug.log "model.flow" model.flow
+    --    _ =
+    --        Debug.log "msg" msg
+    --in
     case ( msg, model.curPage ) of
         ( LinkClicked urlRequest, _ ) ->
             case urlRequest of
@@ -373,13 +373,21 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok userInfo ->
+                Ok user ->
                     let
+                        cred =
+                            Maybe.withDefault
+                                Credentials.default
+                                model.session.cred
+
+                        newCred =
+                            { cred | user = Just user }
+
                         newSession =
-                            Session.setUser model.session (LoggedIn userInfo)
+                            Session.setUser model.session (LoggedIn user)
                     in
-                    ( { model | flow = Done userInfo, session = newSession }
-                    , Cmd.none
+                    ( { model | flow = Done user, session = newSession }
+                    , Credentials.store newCred
                     )
 
         ( _, _ ) ->
