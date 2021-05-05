@@ -76,13 +76,6 @@ init session =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        _ =
-            Debug.log ">>> flow" model.session.flow
-
-        _ =
-            Debug.log ">>> msg" msg
-    in
     case ( model.session.flow, msg ) of
         ( Idle, SignInRequested ) ->
             signInRequested model
@@ -93,26 +86,16 @@ update msg model =
         --( Authorized token, UserInfoRequested ) ->
         --    userInfoRequested model token
         ( Authorized _, GotUserInfo userInfoResponse ) ->
-            let
-                _ =
-                    Debug.log "userInfo" userInfoResponse
-            in
             gotUserInfo model userInfoResponse
 
-        ( Done _, SignOutRequested ) ->
-            signOutRequested model
-
+        --( Done _, SignOutRequested ) ->
+        --    signOutRequested model
         _ ->
             ( model, Cmd.none )
 
 
 subscriptions =
     always <| randomBytes GotRandomBytes
-
-
-
---getUserInfo : Configuration -> OAuth.Token -> Cmd Msg
---getUserInfo { userInfoDecoder, userInfoEndpoint } token =
 
 
 getUserInfo : OAuth.Token -> Cmd Msg
@@ -205,14 +188,6 @@ gotRandomBytes model bytes =
     )
 
 
-
---userInfoRequested : Model -> OAuth.Token -> ( Model, Cmd Msg )
---userInfoRequested model token =
---    ( { model | flow = Authorized token }
---    , getUserInfo configuration token
---    )
-
-
 gotUserInfo : Model -> Result Http.Error User -> ( Model, Cmd Msg )
 gotUserInfo model userInfoResponse =
     case userInfoResponse of
@@ -229,12 +204,13 @@ gotUserInfo model userInfoResponse =
             )
 
 
-signOutRequested : Model -> ( Model, Cmd Msg )
-signOutRequested model =
-    -- ( { model | flow = Idle }
-    ( model
-    , Navigation.load (Url.toString model.redirectUri)
-    )
+
+--signOutRequested : Model -> ( Model, Cmd Msg )
+--signOutRequested model =
+--    -- ( { model | flow = Idle }
+--    ( model
+--    , Navigation.load (Url.toString model.redirectUri)
+--    )
 
 
 toBytes : List Int -> Bytes
@@ -290,7 +266,18 @@ view model =
             , btnClass = class "btn-auth0"
             }
     in
-    viewBody config model
+    --viewBody config model
+    Grid.container []
+        [ Grid.row []
+            [ Grid.col []
+                [ Button.button
+                    [ Button.onClick SignInRequested
+                    , Button.primary
+                    ]
+                    [ text "Sign In Using Auth0" ]
+                ]
+            ]
+        ]
 
 
 viewBody : ViewConfiguration Msg -> Model -> Html Msg

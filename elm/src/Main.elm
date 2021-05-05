@@ -14,10 +14,11 @@ import Json.Decode.Pipeline
 import Json.Encode as Encode exposing (Value)
 import OAuth
 import OAuth.Implicit as OAuth
+import Page.About
 import Page.Cart
 import Page.Conditions
 import Page.Home
-import Page.Searches
+import Page.Profile
 import Page.SignIn
 import Page.Sponsors
 import Page.Study
@@ -63,24 +64,26 @@ type alias Flags =
 
 
 type Page
-    = CartPage Page.Cart.Model
+    = AboutPage Page.About.Model
+    | CartPage Page.Cart.Model
     | ConditionsPage Page.Conditions.Model
     | HomePage Page.Home.Model
-      -- | Redirect Session
+    | ProfilePage Page.Profile.Model
     | SignInPage Page.SignIn.Model
     | StudyPage String Page.Study.Model
-    | SavedSearchesPage Page.Searches.Model
     | SponsorsPage Page.Sponsors.Model
 
 
 type Msg
-    = CartMsg Page.Cart.Msg
+    = AboutMsg Page.About.Msg
+    | CartMsg Page.Cart.Msg
     | ConditionsMsg Page.Conditions.Msg
     | GotUserInfo (Result Http.Error User)
     | HomeMsg Page.Home.Msg
     | LinkClicked Browser.UrlRequest
+    | Logout
     | NavbarMsg Navbar.State
-    | SavedSearchesMsg Page.Searches.InternalMsg
+    | ProfileMsg Page.Profile.InternalMsg
     | SignInMsg Page.SignIn.Msg
     | SetSearchParams SearchParams
     | SponsorsMsg Page.Sponsors.Msg
@@ -144,7 +147,9 @@ init flags url navKey =
                         State.default
                         (Maybe.withDefault CartData.empty f.cart)
                         Idle
-                        (Just (Maybe.withDefault Credentials.default storedCred))
+                        (Just
+                            (Maybe.withDefault Credentials.default storedCred)
+                        )
                         storedUser
                     , f.bytes
                     )
@@ -166,6 +171,10 @@ init flags url navKey =
                     ( Idle, redirectUrl, clearUrl )
 
                 OAuth.Success { token, state } ->
+                    let
+                        _ =
+                            Debug.log "token" token
+                    in
                     case bytes of
                         Nothing ->
                             ( Errored ErrStateMismatch, redirectUrl, clearUrl )
@@ -269,6 +278,18 @@ update msg model =
         ( NavbarMsg state, _ ) ->
             ( { model | navbarState = state }, Cmd.none )
 
+        ( AboutMsg subMsg, AboutPage subModel ) ->
+            let
+                ( newSubModel, newCmd ) =
+                    Page.About.update subMsg subModel
+            in
+            ( { model
+                | curPage = AboutPage newSubModel
+                , session = newSubModel.session
+              }
+            , Cmd.map AboutMsg newCmd
+            )
+
         ( CartMsg subMsg, CartPage subModel ) ->
             let
                 ( newSubModel, newCmd ) =
@@ -293,6 +314,55 @@ update msg model =
             , Cmd.map ConditionsMsg newCmd
             )
 
+        ( GotUserInfo userInfoResponse, _ ) ->
+            case userInfoResponse of
+                Err _ ->
+                    ( { model | flow = Errored ErrHTTPGetUserInfo }
+                    , Cmd.none
+                    )
+
+                Ok user ->
+                    let
+                        cred =
+                            Maybe.withDefault
+                                Credentials.default
+                                model.session.cred
+
+                        newCred =
+                            { cred | user = Just user }
+
+                        newSession =
+                            Session.setUser model.session (LoggedIn user)
+                    in
+                    ( { model | flow = Done user, session = newSession }
+                    , Credentials.store newCred
+                    )
+
+        ( Logout, _ ) ->
+            let
+                newSession =
+                    Session.logout model.session
+
+                ( newPage, newMsg ) =
+                    changeRouteTo
+                        (Just Route.Home)
+                        newSession
+                        model.searchParams
+
+                newModel =
+                    { model
+                        | flow = Idle
+                        , session = newSession
+                        , curPage = newPage
+                    }
+            in
+            ( newModel
+            , Cmd.batch
+                [ Credentials.storeCredentials Nothing
+                , newMsg
+                ]
+            )
+
         ( HomeMsg subMsg, HomePage subModel ) ->
             let
                 ( newSubModel, newCmd ) =
@@ -305,13 +375,13 @@ update msg model =
             , Cmd.map HomeMsg newCmd
             )
 
-        ( SavedSearchesMsg subMsg, SavedSearchesPage subModel ) ->
+        ( ProfileMsg subMsg, ProfilePage subModel ) ->
             let
                 ( newSubModel, newCmd ) =
-                    Page.Searches.update subMsg subModel
+                    Page.Profile.update subMsg subModel
             in
             ( { model
-                | curPage = SavedSearchesPage newSubModel
+                | curPage = ProfilePage newSubModel
                 , session = newSubModel.session
               }
             , Cmd.map childTranslator newCmd
@@ -366,30 +436,6 @@ update msg model =
             , Cmd.map StudyMsg newCmd
             )
 
-        ( GotUserInfo userInfoResponse, _ ) ->
-            case userInfoResponse of
-                Err _ ->
-                    ( { model | flow = Errored ErrHTTPGetUserInfo }
-                    , Cmd.none
-                    )
-
-                Ok user ->
-                    let
-                        cred =
-                            Maybe.withDefault
-                                Credentials.default
-                                model.session.cred
-
-                        newCred =
-                            { cred | user = Just user }
-
-                        newSession =
-                            Session.setUser model.session (LoggedIn user)
-                    in
-                    ( { model | flow = Done user, session = newSession }
-                    , Credentials.store newCred
-                    )
-
         ( _, _ ) ->
             ( model, Cmd.none )
 
@@ -401,6 +447,12 @@ view model =
             Navbar.config NavbarMsg
     in
     case model.curPage of
+        AboutPage subModel ->
+            PageView.view model.session
+                navConfig
+                model.navbarState
+                (Html.map AboutMsg (Page.About.view subModel))
+
         CartPage subModel ->
             PageView.view model.session
                 navConfig
@@ -419,11 +471,11 @@ view model =
                 model.navbarState
                 (Html.map HomeMsg (Page.Home.view subModel))
 
-        SavedSearchesPage subModel ->
+        ProfilePage subModel ->
             PageView.view model.session
                 navConfig
                 model.navbarState
-                (Html.map childTranslator (Page.Searches.view subModel))
+                (Html.map childTranslator (Page.Profile.view subModel))
 
         SignInPage subModel ->
             PageView.view model.session
@@ -444,11 +496,12 @@ view model =
                 (Html.map StudyMsg (Page.Study.view subModel))
 
 
-childTranslator : Page.Searches.Translator Msg
+childTranslator : Page.Profile.Translator Msg
 childTranslator =
-    Page.Searches.translator
-        { onInternalMessage = SavedSearchesMsg
+    Page.Profile.translator
+        { onInternalMessage = ProfileMsg
         , onSetSearchParams = SetSearchParams
+        , onLogout = Logout
         }
 
 
@@ -481,6 +534,13 @@ changeRouteTo :
     -> ( Page, Cmd Msg )
 changeRouteTo maybeRoute session params =
     case maybeRoute of
+        Just Route.About ->
+            let
+                ( subModel, subMsg ) =
+                    Page.About.init session
+            in
+            ( AboutPage subModel, Cmd.map AboutMsg subMsg )
+
         Just Route.Cart ->
             let
                 ( subModel, subMsg ) =
@@ -502,12 +562,12 @@ changeRouteTo maybeRoute session params =
             in
             ( HomePage subModel, Cmd.map HomeMsg subMsg )
 
-        Just Route.SavedSearches ->
+        Just Route.Profile ->
             let
                 ( subModel, subMsg ) =
-                    Page.Searches.init session
+                    Page.Profile.init session
             in
-            ( SavedSearchesPage subModel, Cmd.map childTranslator subMsg )
+            ( ProfilePage subModel, Cmd.map childTranslator subMsg )
 
         Just Route.SignIn ->
             let
