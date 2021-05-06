@@ -10,7 +10,7 @@ import Bytes exposing (Bytes)
 import Bytes.Encode as Bytes
 import Cart exposing (Cart)
 import Common exposing (commify, viewHttpErrorMessage)
-import Config exposing (apiServer, maxCartSize, serverAddress)
+import Config exposing (signInRedirectFragment, signInRedirectHost)
 import Html exposing (Attribute, Html, a, button, div, h1, h2, img, li, p, span, text, ul)
 import Html.Attributes exposing (class, href, src, style, target)
 import Html.Events exposing (onClick)
@@ -62,8 +62,8 @@ init session =
     let
         redirectUri =
             { defaultHttpUrl
-                | host = "localhost:8001"
-                , path = "/#/signin"
+                | host = signInRedirectHost
+                , path = signInRedirectFragment
             }
 
         _ =
