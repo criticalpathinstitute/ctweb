@@ -11,7 +11,7 @@ import Html exposing (Html, a, div, img, input, span, text)
 import Html.Attributes exposing (class, href, placeholder, src, style, target)
 import Icon
 import Route exposing (Route)
-import Session exposing (Session)
+import Session exposing (Session, SessionUser(..))
 
 
 view : Session -> Navbar.Config msg -> Navbar.State -> Html msg -> Document msg
@@ -20,7 +20,7 @@ view session navConfig navbarState content =
         cartButton =
             let
                 cartSize =
-                    Cart.size (Session.getCart session)
+                    Cart.size session.cart
 
                 label =
                     if cartSize == 0 then
@@ -34,6 +34,14 @@ view session navConfig navbarState content =
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
                 ]
+
+        ( profileRoute, profileText ) =
+            case session.user of
+                Guest ->
+                    ( Route.SignIn, "Sign In" )
+
+                LoggedIn user ->
+                    ( Route.Profile, "Profile" )
 
         nav =
             navConfig
@@ -58,10 +66,13 @@ view session navConfig navbarState content =
                         ]
                         [ text "Sponsors" ]
                     , Navbar.itemLink
-                        [ Route.href Route.SavedSearches
-                        , target "_blank"
+                        [ Route.href profileRoute
                         ]
-                        [ text "Searches" ]
+                        [ text profileText ]
+                    , Navbar.itemLink
+                        [ Route.href Route.About
+                        ]
+                        [ text "About" ]
                     , Navbar.itemLink
                         [ Route.href Route.Cart
                         , target "_blank"

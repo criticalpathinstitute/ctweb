@@ -10,10 +10,13 @@ import Url.Parser.Query as Query
 
 
 type Route
-    = Cart
+    = About
+    | Cart
     | Conditions
-    | Home -- (Maybe SearchParams)
-    | SavedSearches
+    | Home
+    | Profile
+    | SignIn
+    | Login
     | Sponsors
     | Study String
 
@@ -25,11 +28,14 @@ type Route
 routeParser : Parser (Route -> a) a
 routeParser =
     oneOf
-        [ Parser.map Home (s "search")
-        , Parser.map Conditions (s "conditions")
-        , Parser.map SavedSearches (s "searches")
-        , Parser.map Sponsors (s "sponsors")
+        [ Parser.map About (s "about")
         , Parser.map Cart (s "cart")
+        , Parser.map Conditions (s "conditions")
+        , Parser.map Home (s "search")
+        , Parser.map Login (s "login")
+        , Parser.map Profile (s "profile")
+        , Parser.map SignIn (s "signin")
+        , Parser.map Sponsors (s "sponsors")
         , Parser.map Study (s "study" </> string)
         ]
 
@@ -67,6 +73,9 @@ routeToString page =
     let
         pathParts =
             case page of
+                About ->
+                    [ "about" ]
+
                 Cart ->
                     [ "cart" ]
 
@@ -76,13 +85,17 @@ routeToString page =
                 Home ->
                     [ "search" ]
 
-                --Home (Just params) ->
-                --    =" ++ condition ], [ "search" ] )
+                Login ->
+                    [ "login" ]
+
+                Profile ->
+                    [ "profile" ]
+
                 Study nctId ->
                     [ "study", nctId ]
 
-                SavedSearches ->
-                    [ "searches" ]
+                SignIn ->
+                    [ "signin" ]
 
                 Sponsors ->
                     [ "sponsors" ]

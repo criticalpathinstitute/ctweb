@@ -68,6 +68,7 @@ class SavedSearch(BaseModel):
     phase_ids: str
     study_type_ids: str
     enrollment: int
+    email_to: str
 
 
 class SaveSearchResponse(BaseModel):
@@ -825,21 +826,24 @@ def phases() -> List[Phase]:
 
 # --------------------------------------------------
 @app.get('/save_search', response_model=SaveSearchResponse)
-def save_search(
-    search_name: str,
-    full_text: Optional[str] = '',
-    full_text_bool: Optional[int] = 0,
-    conditions: Optional[str] = '',
-    conditions_bool: Optional[int] = 0,
-    sponsors: Optional[str] = '',
-    sponsors_bool: Optional[int] = 0,
-    phase_ids: Optional[str] = '',
-    study_type_ids: Optional[str] = '',
-    enrollment: Optional[int] = 0,
-) -> int:
+def save_search(search_name: str,
+                email_id: str,
+                full_text: Optional[str] = '',
+                full_text_bool: Optional[int] = 0,
+                conditions: Optional[str] = '',
+                conditions_bool: Optional[int] = 0,
+                sponsors: Optional[str] = '',
+                sponsors_bool: Optional[int] = 0,
+                phase_ids: Optional[str] = '',
+                study_type_ids: Optional[str] = '',
+                enrollment: Optional[int] = 0,
+                email_to: Optional[str] = '') -> int:
     """ Save search """
 
+    user, _ = ct.WebUser.get_or_create(email=email_id)
+
     saved_search, _ = ct.SavedSearch.get_or_create(
+        web_user_id=user.web_user_id,
         search_name=search_name,
         full_text=full_text,
         full_text_bool=full_text_bool,
@@ -849,23 +853,28 @@ def save_search(
         sponsors_bool=sponsors_bool,
         phase_ids=phase_ids,
         study_type_ids=study_type_ids,
-        enrollment=enrollment)
+        enrollment=enrollment,
+        email_to=email_to)
 
     return SaveSearchResponse(num_saved_searches=1)
 
 
 # --------------------------------------------------
 @app.get('/saved_searches', response_model=List[SavedSearch])
-def saved_searches() -> List[SavedSearch]:
+def saved_searches(email: str) -> List[SavedSearch]:
     """ Get saved searches """
 
-    sql = """
+    user, _ = ct.WebUser.get_or_create(email=email)
+
+    sql = f"""
         select   s.saved_search_id, s.search_name,
                  s.full_text, s.full_text_bool,
                  s.conditions, s.conditions_bool,
                  s.sponsors, s.sponsors_bool,
-                 s.phase_ids, s.study_type_ids, s.enrollment
+                 s.phase_ids, s.study_type_ids,
+                 s.enrollment, s.email_to
         from     saved_search s
+        where    s.web_user_id={user.web_user_id}
         order by 2
     """
 

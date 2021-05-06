@@ -1,4 +1,4 @@
-module Page.Searches exposing (InternalMsg, Model, Msg, Translator, init, subscriptions, translator, update, view)
+module Page.Profile exposing (InternalMsg, Model, Msg, Translator, init, subscriptions, translator, update, view)
 
 import Bool.Extra exposing (ifElse)
 import Bootstrap.Button as Button
@@ -7,11 +7,12 @@ import Bootstrap.Form.Checkbox as Checkbox
 import Bootstrap.Form.Input as Input
 import Bootstrap.Grid as Grid
 import Bootstrap.Grid.Col as Col
+import Bootstrap.Table exposing (simpleTable, simpleThead, tbody, td, th, thead, tr)
 import Bootstrap.Utilities.Spacing as Spacing
 import Common exposing (commify, viewHttpErrorMessage)
 import Config exposing (apiServer, serverAddress)
-import Html exposing (Html, a, div, h1, h2, li, text, ul)
-import Html.Attributes exposing (for, href, placeholder, style, target)
+import Html exposing (Html, a, div, h1, h2, img, li, text, ul)
+import Html.Attributes exposing (for, href, placeholder, src, style, target)
 import Html.Events exposing (onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
@@ -19,7 +20,7 @@ import Json.Decode.Pipeline exposing (hardcoded, optional, required)
 import Maybe.Extra exposing (isNothing)
 import RemoteData exposing (RemoteData, WebData)
 import Route
-import Session exposing (Session)
+import Session exposing (Session, SessionUser(..))
 import Table
 import Types exposing (SearchParams)
 import Url.Builder
@@ -49,6 +50,7 @@ type alias SavedSearch =
 
 type OutMsg
     = SetSearchParams SearchParams
+    | Logout
 
 
 type InternalMsg
@@ -64,6 +66,7 @@ type Msg
 type alias TranslationDictionary msg =
     { onInternalMessage : InternalMsg -> msg
     , onSetSearchParams : SearchParams -> msg
+    , onLogout : msg
     }
 
 
@@ -72,13 +75,16 @@ type alias Translator msg =
 
 
 translator : TranslationDictionary msg -> Translator msg
-translator { onInternalMessage, onSetSearchParams } msg =
+translator { onInternalMessage, onSetSearchParams, onLogout } msg =
     case msg of
         ForSelf internal ->
             onInternalMessage internal
 
         ForParent (SetSearchParams val) ->
             onSetSearchParams val
+
+        ForParent Logout ->
+            onLogout
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -87,7 +93,7 @@ init session =
       , searches = RemoteData.NotAsked
       , tableState = Table.initialSort "searchName"
       }
-    , getSearches
+    , getSearches session
     )
 
 
@@ -108,6 +114,39 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
+        ( userName, picture ) =
+            case model.session.user of
+                LoggedIn user ->
+                    ( text user.name, img [ src user.picture ] [] )
+
+                Guest ->
+                    ( text "Guest", text "" )
+
+        userTable =
+            simpleTable
+                ( simpleThead []
+                , tbody []
+                    [ tr []
+                        [ th [] [ text "User" ]
+                        , td []
+                            [ userName
+                            , picture
+                            ]
+                        ]
+                    , tr []
+                        [ td [] []
+                        , td []
+                            [ Button.button
+                                [ Button.primary
+                                , Button.onClick (ForParent Logout)
+                                , Button.attrs [ Spacing.mx1 ]
+                                ]
+                                [ text "Logout" ]
+                            ]
+                        ]
+                    ]
+                )
+
         viewSearches =
             case model.searches of
                 RemoteData.NotAsked ->
@@ -123,6 +162,17 @@ view model =
                     let
                         numSearches =
                             List.length searches
+
+                        tbl =
+                            case numSearches of
+                                0 ->
+                                    text "None"
+
+                                _ ->
+                                    Table.view
+                                        tableConfig
+                                        model.tableState
+                                        searches
                     in
                     div []
                         [ h1 []
@@ -131,15 +181,14 @@ view model =
                                     ++ commify numSearches
                                     ++ ")"
                             ]
-                        , div []
-                            [ Table.view tableConfig model.tableState searches
-                            ]
+                        , div [] [ tbl ]
                         ]
     in
     Grid.container []
         [ Grid.row []
             [ Grid.col []
-                [ viewSearches
+                [ userTable
+                , viewSearches
                 ]
             ]
         ]
@@ -226,18 +275,26 @@ subscriptions model =
     Sub.none
 
 
-getSearches : Cmd Msg
-getSearches =
-    let
-        url =
-            apiServer ++ "/saved_searches"
-    in
-    Http.get
-        { url = url
-        , expect =
-            Http.expectJson
-                (RemoteData.fromResult
-                    >> (\x -> ForSelf (SavedSearchesResponse x))
-                )
-                (Json.Decode.list decoderSavedSearch)
-        }
+getSearches : Session -> Cmd Msg
+getSearches session =
+    case session.user of
+        LoggedIn user ->
+            let
+                url =
+                    apiServer
+                        ++ "/saved_searches"
+                        ++ Url.Builder.toQuery
+                            [ Url.Builder.string "email" user.email ]
+            in
+            Http.get
+                { url = url
+                , expect =
+                    Http.expectJson
+                        (RemoteData.fromResult
+                            >> (\x -> ForSelf (SavedSearchesResponse x))
+                        )
+                        (Json.Decode.list decoderSavedSearch)
+                }
+
+        _ ->
+            Cmd.none
