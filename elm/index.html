@@ -14,7 +14,7 @@
   <body>
     <script src="/elm.js"></script>
     <script>
-      const COOKIE_NAME = 'cpath-clinicaltrials-0.1.1';
+      const COOKIE_NAME = 'cpath-clinicaltrials-0.1.4';
       const CRED_COOKIE_NAME = COOKIE_NAME + '.cred';
       const CART_COOKIE_NAME = COOKIE_NAME + '.cart';
       var app = Elm.Main.init({
@@ -41,7 +41,7 @@
       });
 
       app.ports.storeCredentials.subscribe(function(session) {
-          console.log("storeCredentials: ", session);
+          //console.log("storeCredentials: ", session);
           localStorage.setItem(CRED_COOKIE_NAME, JSON.stringify(session));
       });
 

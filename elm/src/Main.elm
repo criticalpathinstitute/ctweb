@@ -171,10 +171,6 @@ init flags url navKey =
                     ( Idle, redirectUrl, clearUrl )
 
                 OAuth.Success { token, state } ->
-                    let
-                        _ =
-                            Debug.log "token" token
-                    in
                     case bytes of
                         Nothing ->
                             ( Errored ErrStateMismatch, redirectUrl, clearUrl )
@@ -249,12 +245,6 @@ init flags url navKey =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    --let
-    --    _ =
-    --        Debug.log "model.flow" model.flow
-    --    _ =
-    --        Debug.log "msg" msg
-    --in
     case ( msg, model.curPage ) of
         ( LinkClicked urlRequest, _ ) ->
             case urlRequest of

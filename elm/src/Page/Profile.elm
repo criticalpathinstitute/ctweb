@@ -11,8 +11,8 @@ import Bootstrap.Table exposing (simpleTable, simpleThead, tbody, td, th, thead,
 import Bootstrap.Utilities.Spacing as Spacing
 import Common exposing (commify, viewHttpErrorMessage)
 import Config exposing (apiServer, serverAddress)
-import Html exposing (Html, a, div, h1, h2, li, text, ul)
-import Html.Attributes exposing (for, href, placeholder, style, target)
+import Html exposing (Html, a, div, h1, h2, img, li, text, ul)
+import Html.Attributes exposing (for, href, placeholder, src, style, target)
 import Html.Events exposing (onInput, onSubmit)
 import Http
 import Json.Decode exposing (Decoder, field, float, int, nullable, string)
@@ -93,7 +93,7 @@ init session =
       , searches = RemoteData.NotAsked
       , tableState = Table.initialSort "searchName"
       }
-    , getSearches
+    , getSearches session
     )
 
 
@@ -114,13 +114,13 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        ( userName, nickname ) =
+        ( userName, picture ) =
             case model.session.user of
                 LoggedIn user ->
-                    ( user.name, user.nickname )
+                    ( text user.name, img [ src user.picture ] [] )
 
                 Guest ->
-                    ( "Guest", "" )
+                    ( text "Guest", text "" )
 
         userTable =
             simpleTable
@@ -128,11 +128,10 @@ view model =
                 , tbody []
                     [ tr []
                         [ th [] [ text "User" ]
-                        , td [] [ text userName ]
-                        ]
-                    , tr []
-                        [ th [] [ text "Nickname" ]
-                        , td [] [ text nickname ]
+                        , td []
+                            [ userName
+                            , picture
+                            ]
                         ]
                     , tr []
                         [ td [] []
@@ -163,6 +162,17 @@ view model =
                     let
                         numSearches =
                             List.length searches
+
+                        tbl =
+                            case numSearches of
+                                0 ->
+                                    text "None"
+
+                                _ ->
+                                    Table.view
+                                        tableConfig
+                                        model.tableState
+                                        searches
                     in
                     div []
                         [ h1 []
@@ -171,9 +181,7 @@ view model =
                                     ++ commify numSearches
                                     ++ ")"
                             ]
-                        , div []
-                            [ Table.view tableConfig model.tableState searches
-                            ]
+                        , div [] [ tbl ]
                         ]
     in
     Grid.container []
@@ -267,18 +275,26 @@ subscriptions model =
     Sub.none
 
 
-getSearches : Cmd Msg
-getSearches =
-    let
-        url =
-            apiServer ++ "/saved_searches"
-    in
-    Http.get
-        { url = url
-        , expect =
-            Http.expectJson
-                (RemoteData.fromResult
-                    >> (\x -> ForSelf (SavedSearchesResponse x))
-                )
-                (Json.Decode.list decoderSavedSearch)
-        }
+getSearches : Session -> Cmd Msg
+getSearches session =
+    case session.user of
+        LoggedIn user ->
+            let
+                url =
+                    apiServer
+                        ++ "/saved_searches"
+                        ++ Url.Builder.toQuery
+                            [ Url.Builder.string "email" user.email ]
+            in
+            Http.get
+                { url = url
+                , expect =
+                    Http.expectJson
+                        (RemoteData.fromResult
+                            >> (\x -> ForSelf (SavedSearchesResponse x))
+                        )
+                        (Json.Decode.list decoderSavedSearch)
+                }
+
+        _ ->
+            Cmd.none

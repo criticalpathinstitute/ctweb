@@ -86,6 +86,10 @@ update msg model =
         --( Authorized token, UserInfoRequested ) ->
         --    userInfoRequested model token
         ( Authorized _, GotUserInfo userInfoResponse ) ->
+            let
+                _ =
+                    Debug.log "userInfoResponse" userInfoResponse
+            in
             gotUserInfo model userInfoResponse
 
         --( Done _, SignOutRequested ) ->
@@ -133,7 +137,7 @@ configuration =
     , userInfoDecoder = User.userDecoder
     , clientId = "WtqPTRMEOWroj4izPpM6cTbUBES1GtHI"
     , scope =
-        [ "profile", "openid" ]
+        [ "profile", "openid", "email" ]
     }
 
 

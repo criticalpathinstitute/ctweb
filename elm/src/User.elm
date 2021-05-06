@@ -18,7 +18,7 @@ import Json.Encode as Encode exposing (Value)
 
 type alias User =
     { name : String
-    , nickname : String
+    , email : String
     , picture : String
     }
 
@@ -31,7 +31,7 @@ userDecoder : Decoder User
 userDecoder =
     Decode.succeed User
         |> required "name" Decode.string
-        |> required "nickname" Decode.string
+        |> required "email" Decode.string
         |> required "picture" Decode.string
 
 
@@ -39,6 +39,6 @@ encodeUser : User -> Value
 encodeUser user =
     Encode.object
         [ ( "name", Encode.string user.name )
-        , ( "nickname", Encode.string user.nickname )
+        , ( "email", Encode.string user.email )
         , ( "picture", Encode.string user.picture )
         ]

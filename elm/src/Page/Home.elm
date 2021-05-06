@@ -26,7 +26,7 @@ import Maybe.Extra exposing (isNothing, unwrap)
 import Regex
 import RemoteData exposing (RemoteData, WebData)
 import Route
-import Session exposing (Session)
+import Session exposing (Session, SessionUser(..))
 import Set
 import Task
 import Types exposing (SearchParams)
@@ -1011,72 +1011,87 @@ doSearch model =
 
 saveSearch : Model -> Cmd Msg
 saveSearch model =
-    let
-        searchName =
-            Url.Builder.string "search_name"
-                (Maybe.withDefault "" model.searchName)
+    case model.session.user of
+        Guest ->
+            Cmd.none
 
-        fullText =
-            Url.Builder.string "full_text"
-                (Maybe.withDefault "" model.queryText)
+        LoggedIn user ->
+            let
+                emailId =
+                    Url.Builder.string "email_id" user.email
 
-        fullTextBool =
-            Url.Builder.int "full_text_bool" (ifElse 1 0 model.queryTextBool)
+                searchName =
+                    Url.Builder.string "search_name"
+                        (Maybe.withDefault "" model.searchName)
 
-        conditions =
-            Url.Builder.string "conditions"
-                (Maybe.withDefault "" model.queryConditions)
+                fullText =
+                    Url.Builder.string "full_text"
+                        (Maybe.withDefault "" model.queryText)
 
-        conditionsBool =
-            Url.Builder.int "conditions_bool" (ifElse 1 0 model.queryConditionsBool)
+                fullTextBool =
+                    Url.Builder.int "full_text_bool"
+                        (ifElse 1 0 model.queryTextBool)
 
-        sponsors =
-            Url.Builder.string "sponsors"
-                (Maybe.withDefault "" model.querySponsors)
+                conditions =
+                    Url.Builder.string "conditions"
+                        (Maybe.withDefault "" model.queryConditions)
 
-        sponsorsBool =
-            Url.Builder.int "sponsors_bool" (ifElse 1 0 model.querySponsorsBool)
+                conditionsBool =
+                    Url.Builder.int "conditions_bool"
+                        (ifElse 1 0 model.queryConditionsBool)
 
-        phaseIds =
-            List.map (\p -> String.fromInt p.phaseId)
-                model.querySelectedPhases
-                |> String.join ","
-                |> Url.Builder.string "phase_ids"
+                sponsors =
+                    Url.Builder.string "sponsors"
+                        (Maybe.withDefault "" model.querySponsors)
 
-        studyTypeIds =
-            List.map (\s -> String.fromInt s.studyTypeId)
-                model.querySelectedStudyTypes
-                |> String.join ","
-                |> Url.Builder.string "study_type_ids"
+                sponsorsBool =
+                    Url.Builder.int "sponsors_bool"
+                        (ifElse 1 0 model.querySponsorsBool)
 
-        enrollment =
-            Url.Builder.int "enrollment"
-                (Maybe.withDefault 0 model.queryEnrollment)
+                phaseIds =
+                    List.map (\p -> String.fromInt p.phaseId)
+                        model.querySelectedPhases
+                        |> String.join ","
+                        |> Url.Builder.string "phase_ids"
 
-        params =
-            Url.Builder.toQuery
-                [ searchName
-                , fullText
-                , fullTextBool
-                , conditions
-                , conditionsBool
-                , sponsors
-                , sponsorsBool
-                , phaseIds
-                , studyTypeIds
-                , enrollment
-                ]
+                studyTypeIds =
+                    List.map (\s -> String.fromInt s.studyTypeId)
+                        model.querySelectedStudyTypes
+                        |> String.join ","
+                        |> Url.Builder.string "study_type_ids"
 
-        saveSearchUrl =
-            apiServer ++ "/save_search" ++ params
-    in
-    Http.get
-        { url = saveSearchUrl
-        , expect =
-            Http.expectJson
-                (RemoteData.fromResult >> SavedSearchResponse)
-                decoderSavedSearches
-        }
+                enrollment =
+                    Url.Builder.int "enrollment"
+                        (Maybe.withDefault 0 model.queryEnrollment)
+
+                email_to =
+                    Url.Builder.string "email_to" user.email
+
+                params =
+                    Url.Builder.toQuery
+                        [ emailId
+                        , searchName
+                        , fullText
+                        , fullTextBool
+                        , conditions
+                        , conditionsBool
+                        , sponsors
+                        , sponsorsBool
+                        , phaseIds
+                        , studyTypeIds
+                        , enrollment
+                        ]
+
+                saveSearchUrl =
+                    apiServer ++ "/save_search" ++ params
+            in
+            Http.get
+                { url = saveSearchUrl
+                , expect =
+                    Http.expectJson
+                        (RemoteData.fromResult >> SavedSearchResponse)
+                        decoderSavedSearches
+                }
 
 
 strToMaybe : String -> Maybe String
