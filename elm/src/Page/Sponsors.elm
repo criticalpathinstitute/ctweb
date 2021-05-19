@@ -130,7 +130,7 @@ view model =
             Form.formInline []
                 [ Input.text
                     [ Input.attrs
-                        [ placeholder "Search", onInput SetSponsorsFilter ]
+                        [ placeholder "sponsor name", onInput SetSponsorsFilter ]
                     ]
                 , Checkbox.checkbox
                     [ Checkbox.id "chkBool"

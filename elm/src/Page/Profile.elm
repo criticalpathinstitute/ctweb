@@ -128,13 +128,8 @@ view model =
                 , tbody []
                     [ tr []
                         [ th [] [ text "User" ]
-                        , td []
-                            [ userName
-                            , picture
-                            ]
-                        ]
-                    , tr []
-                        [ td [] []
+                        , td [] [ userName ]
+                        , td [] [ picture ]
                         , td []
                             [ Button.button
                                 [ Button.primary

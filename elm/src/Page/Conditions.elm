@@ -130,7 +130,7 @@ view model =
             Form.formInline []
                 [ Input.text
                     [ Input.attrs
-                        [ placeholder "Search", onInput SetConditionsFilter ]
+                        [ placeholder "condition", onInput SetConditionsFilter ]
                     ]
                 , Checkbox.checkbox
                     [ Checkbox.id "chkBool"
