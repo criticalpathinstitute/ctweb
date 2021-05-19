@@ -119,7 +119,7 @@ init flags url navKey =
             { url | query = Nothing, fragment = Nothing }
 
         clearUrl =
-            Nav.replaceUrl navKey (Url.toString redirectUrl)
+            Nav.replaceUrl navKey (Url.toString url)
 
         ( session, bytes ) =
             case Decode.decodeValue flagsDecoder flags of

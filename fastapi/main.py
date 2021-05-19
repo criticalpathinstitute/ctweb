@@ -51,6 +51,11 @@ class ConditionDropDown(BaseModel):
     num_studies: int
 
 
+class Dataload(BaseModel):
+    num_studies: int
+    updated_on: str
+
+
 class Phase(BaseModel):
     phase_id: int
     phase_name: str
@@ -889,3 +894,39 @@ def saved_searches(email: str) -> List[SavedSearch]:
         cur.close()
 
     return list(map(lambda r: SavedSearch(**dict(r)), res))
+
+
+# --------------------------------------------------
+@app.get('/dataload', response_model=Dataload)
+def phases() -> Dataload:
+    """ Dataload """
+
+    sql = """
+        select   updated_on
+        from     dataload
+        order by 1 desc
+        limit 1
+    """
+
+    cur = get_cur()
+    num_studies = 0
+    updated_on = 'NA'
+
+    try:
+        cur.execute(sql)
+        res = cur.fetchone()
+        if res:
+            updated_on=str(res['updated_on'])
+
+        cur.execute('select count(study_id) as num_studies from study')
+        res = cur.fetchone()
+        if res:
+            num_studies = res['num_studies']
+
+    except:
+        dbh.rollback()
+    finally:
+        cur.close()
+
+    return Dataload(num_studies=num_studies,
+                    updated_on=updated_on)

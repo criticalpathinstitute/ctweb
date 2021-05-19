@@ -129,7 +129,10 @@ type Msg
     | SetSearchName String
     | SetSponsors String
     | StudyTypesResponse (WebData (List StudyType))
-    | SummaryResponse (WebData Summary)
+
+
+
+-- | SummaryResponse (WebData Summary)
 
 
 defaultRecordLimit =
@@ -209,7 +212,7 @@ init session params =
         , queryEnrollment = queryEnrollment
         , searchName = searchName
       }
-    , Cmd.batch [ getSummary, getPhases, getStudyTypes ]
+    , Cmd.batch [ getPhases, getStudyTypes ]
     )
 
 
@@ -382,11 +385,10 @@ update msg model =
         SaveSearch ->
             ( model, saveSearch model )
 
-        SummaryResponse data ->
-            ( { model | summary = data }
-            , Cmd.none
-            )
-
+        --SummaryResponse data ->
+        --    ( { model | summary = data }
+        --    , Cmd.none
+        --    )
         SavedSearchResponse data ->
             ( model, Cmd.none )
 
@@ -464,20 +466,6 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        summary =
-            case model.summary of
-                RemoteData.NotAsked ->
-                    "Not asked"
-
-                RemoteData.Loading ->
-                    "Loading data..."
-
-                RemoteData.Failure httpError ->
-                    viewHttpErrorMessage httpError
-
-                RemoteData.Success data ->
-                    "Search " ++ commify data.numStudies ++ " studies"
-
         empty =
             [ Select.item [ value "" ] [ text "--Select--" ] ]
 
@@ -698,7 +686,7 @@ view model =
                         ]
                     ]
                 , Form.row []
-                    [ Form.col [ Col.offsetSm2, Col.sm5 ]
+                    [ Form.col [ Col.offsetSm2, Col.sm7 ]
                         [ Button.button
                             [ Button.primary
                             , Button.onClick DoSearch
@@ -823,9 +811,7 @@ view model =
         --[ text summary
         --, searchForm
         --]
-        [ Grid.row [ Row.centerMd ]
-            [ Grid.col [ Col.md10 ] [ text summary ] ]
-        , Grid.row []
+        [ Grid.row []
             [ Grid.col [] [ searchForm ] ]
         , Grid.row []
             [ Grid.col [] [ viewSearchResults ] ]
@@ -874,15 +860,16 @@ filteredConditions conditions conditionFilter =
             []
 
 
-getSummary : Cmd Msg
-getSummary =
-    Http.get
-        { url = apiServer ++ "/summary"
-        , expect =
-            Http.expectJson
-                (RemoteData.fromResult >> SummaryResponse)
-                decoderSummary
-        }
+
+--getSummary : Cmd Msg
+--getSummary =
+--    Http.get
+--        { url = apiServer ++ "/summary"
+--        , expect =
+--            Http.expectJson
+--                (RemoteData.fromResult >> SummaryResponse)
+--                decoderSummary
+--        }
 
 
 getPhases : Cmd Msg
@@ -1129,10 +1116,11 @@ decoderPhase =
         |> Json.Decode.Pipeline.required "phase_name" string
 
 
-decoderSummary : Decoder Summary
-decoderSummary =
-    Json.Decode.succeed Summary
-        |> Json.Decode.Pipeline.required "num_studies" int
+
+--decoderSummary : Decoder Summary
+--decoderSummary =
+--    Json.Decode.succeed Summary
+--        |> Json.Decode.Pipeline.required "num_studies" int
 
 
 decoderSavedSearches : Decoder SavedSearches
