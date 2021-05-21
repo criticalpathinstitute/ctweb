@@ -1,8 +1,7 @@
 from peewee import *
 from playhouse.postgres_ext import *
 
-# database = PostgresqlDatabase('ct', user='postgres', host='127.0.0.1')
-database = PostgresqlDatabase('ct', host='127.0.0.1')
+database = PostgresqlDatabase('ct')
 
 class UnknownField(object):
     def __init__(self, *_, **__): pass
@@ -20,6 +19,13 @@ class Condition(BaseModel):
         indexes = (
             ((), False),
         )
+
+class Dataload(BaseModel):
+    dataload_id = AutoField()
+    updated_on = DateField(null=True, unique=True)
+
+    class Meta:
+        table_name = 'dataload'
 
 class Intervention(BaseModel):
     intervention_id = AutoField()
@@ -88,7 +94,6 @@ class StudyType(BaseModel):
 
 class Study(BaseModel):
     acronym = TextField(null=True)
-    all_text = TextField(null=True)
     biospec_description = TextField(null=True)
     biospec_retention = TextField(null=True)
     brief_summary = TextField(null=True)
@@ -97,6 +102,7 @@ class Study(BaseModel):
     detailed_description = TextField(null=True)
     enrollment = IntegerField(null=True)
     fulltext = TSVectorField(index=True, null=True)
+    fulltext_load = TextField(null=True)
     has_expanded_access = TextField(null=True)
     keywords = TextField(null=True)
     last_known_status = ForeignKeyField(column_name='last_known_status_id', field='status_id', model=Status)
@@ -116,9 +122,6 @@ class Study(BaseModel):
 
     class Meta:
         table_name = 'study'
-        indexes = (
-            ((), False),
-        )
 
 class StudyDoc(BaseModel):
     doc_comment = TextField(null=True)

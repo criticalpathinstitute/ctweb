@@ -393,7 +393,7 @@ view model =
                     div [] [ img [ src "/assets/images/loading.gif" ] [] ]
 
                 RemoteData.NotAsked ->
-                    div [] [ text "Not asked" ]
+                    div [] [ text "Cart is empty" ]
 
                 RemoteData.Failure httpError ->
                     div [] [ text <| viewHttpErrorMessage httpError ]
