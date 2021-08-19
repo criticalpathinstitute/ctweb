@@ -173,6 +173,9 @@ initialModel session =
 init : Session -> Maybe SearchParams -> ( Model, Cmd Msg )
 init session params =
     let
+        _ =
+            Debug.log "params" params
+
         model =
             initialModel session
 

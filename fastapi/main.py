@@ -68,6 +68,8 @@ class SavedSearch(BaseModel):
     sponsors_bool: int
     conditions: str
     conditions_bool: int
+    interventions: str
+    interventions_bool: int
     phase_ids: str
     study_type_ids: str
     enrollment: int
@@ -576,7 +578,6 @@ def search(text: Optional[str] = '',
         limit {}
     """.format(', '.join(table_names), where, limit or 'ALL')
 
-    print(f'select_sql {select_sql}')
     res = []
     count = 0
     try:
@@ -870,8 +871,8 @@ def save_search(search_name: str,
         conditions_bool=conditions_bool,
         sponsors=sponsors,
         sponsors_bool=sponsors_bool,
-        interventions=sponsors,
-        interventions_bool=sponsors_bool,
+        interventions=interventions,
+        interventions_bool=interventions_bool,
         phase_ids=phase_ids,
         study_type_ids=study_type_ids,
         enrollment=enrollment,
@@ -892,6 +893,7 @@ def saved_searches(email: str) -> List[SavedSearch]:
                  s.full_text, s.full_text_bool,
                  s.conditions, s.conditions_bool,
                  s.sponsors, s.sponsors_bool,
+                 s.interventions, s.interventions_bool,
                  s.phase_ids, s.study_type_ids,
                  s.enrollment, s.email_to
         from     saved_search s
