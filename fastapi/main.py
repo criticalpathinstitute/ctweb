@@ -24,12 +24,10 @@ from typing import List, Optional
 #
 config_file = './config.ini'
 assert os.path.isfile(config_file)
-config = ConfigParser()
+config = ConfigParser(interpolation=None)
 config.read(config_file)
 
 app = FastAPI(root_path=config['DEFAULT']['api_prefix'])
-#client = MongoClient(config['DEFAULT']['mongo_url'])
-#mongo_db = client['ct']
 
 origins = [
     "http://localhost:*",
@@ -186,9 +184,9 @@ class SearchResults(BaseModel):
     records: List[StudySearchResult]
 
 
-dsn_tmpl = 'dbname=ct user={} password={} host={}'
-dsn = dsn_tmpl.format(config['DEFAULT']['dbuser'], config['DEFAULT']['dbpass'],
-                      config['DEFAULT']['dbhost'])
+dsn_tmpl = 'dbname={} user={} password={} host={}'
+dsn = dsn_tmpl.format(config['DEFAULT']['dbname'], config['DEFAULT']['dbuser'],
+                      config['DEFAULT']['dbpass'], config['DEFAULT']['dbhost'])
 dbh = psycopg2.connect(dsn)
 
 
@@ -916,7 +914,7 @@ def phases() -> Dataload:
         cur.execute(sql)
         res = cur.fetchone()
         if res:
-            updated_on=str(res['updated_on'])
+            updated_on = str(res['updated_on'])
 
         cur.execute('select count(study_id) as num_studies from study')
         res = cur.fetchone()
@@ -928,5 +926,4 @@ def phases() -> Dataload:
     finally:
         cur.close()
 
-    return Dataload(num_studies=num_studies,
-                    updated_on=updated_on)
+    return Dataload(num_studies=num_studies, updated_on=updated_on)

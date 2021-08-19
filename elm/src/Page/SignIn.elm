@@ -61,7 +61,7 @@ init : Session -> ( Model, Cmd Msg )
 init session =
     let
         redirectUri =
-            { defaultHttpUrl
+            { defaultHttpsUrl
                 | host = signInRedirectHost
                 , path = signInRedirectFragment
             }
@@ -135,9 +135,8 @@ configuration =
             , path = "/userinfo"
         }
     , userInfoDecoder = User.userDecoder
-    , clientId = "WtqPTRMEOWroj4izPpM6cTbUBES1GtHI"
-    , scope =
-        [ "profile", "openid", "email" ]
+    , clientId = "WZKJBotm99zjbH2z2j5sKgbZ9Rr4U8ex"
+    , scope = [ "profile", "openid", "email" ]
     }
 
 
