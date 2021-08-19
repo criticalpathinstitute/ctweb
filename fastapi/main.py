@@ -452,6 +452,8 @@ def search(text: Optional[str] = '',
            conditions_bool: Optional[int] = 0,
            sponsor_names: Optional[str] = '',
            sponsors_bool: Optional[int] = 0,
+           intervention_names: Optional[str] = '',
+           interventions_bool: Optional[int] = 0,
            enrollment: Optional[str] = '',
            overall_status_id: Optional[int] = 0,
            last_known_status_id: Optional[int] = 0,
@@ -524,6 +526,17 @@ def search(text: Optional[str] = '',
             ['s.study_id=s2p.study_id', 's2p.sponsor_id=sp.sponsor_id', names]
         })
 
+    if intervention_names:
+        names = 'i.intervention_name @@ {}'.format(
+            tsquery(intervention_names, interventions_bool))
+        where.append({
+            'tables': ['study_to_intervention s2i', 'intervention i'],
+            'where': [
+                's.study_id=s2i.study_id',
+                's2i.intervention_id=i.intervention_id', names
+            ]
+        })
+
     if condition_ids:
         where.append({
             'tables': ['study_to_condition s2c'],
@@ -563,6 +576,7 @@ def search(text: Optional[str] = '',
         limit {}
     """.format(', '.join(table_names), where, limit or 'ALL')
 
+    print(f'select_sql {select_sql}')
     res = []
     count = 0
     try:
@@ -837,6 +851,8 @@ def save_search(search_name: str,
                 conditions_bool: Optional[int] = 0,
                 sponsors: Optional[str] = '',
                 sponsors_bool: Optional[int] = 0,
+                interventions: Optional[str] = '',
+                interventions_bool: Optional[int] = 0,
                 phase_ids: Optional[str] = '',
                 study_type_ids: Optional[str] = '',
                 enrollment: Optional[int] = 0,
@@ -854,6 +870,8 @@ def save_search(search_name: str,
         conditions_bool=conditions_bool,
         sponsors=sponsors,
         sponsors_bool=sponsors_bool,
+        interventions=sponsors,
+        interventions_bool=sponsors_bool,
         phase_ids=phase_ids,
         study_type_ids=study_type_ids,
         enrollment=enrollment,

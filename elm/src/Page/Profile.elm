@@ -42,6 +42,8 @@ type alias SavedSearch =
     , sponsorsBool : Int
     , conditions : String
     , conditionsBool : Int
+    , interventions : String
+    , interventionsBool : Int
     , phaseIds : String
     , studyTypeIds : String
     , enrollment : Int
@@ -218,6 +220,8 @@ tableConfig =
             , conditionsBool = intToBool item.conditionsBool
             , sponsors = strToMaybe item.sponsors
             , sponsorsBool = intToBool item.sponsorsBool
+            , interventions = strToMaybe item.interventions
+            , interventionsBool = intToBool item.interventionsBool
             , phaseIds = strToIntList item.phaseIds
             , studyTypeIds = strToIntList item.studyTypeIds
             , enrollment = item.enrollment
@@ -260,6 +264,8 @@ decoderSavedSearch =
         |> Json.Decode.Pipeline.required "sponsors_bool" int
         |> Json.Decode.Pipeline.required "conditions" string
         |> Json.Decode.Pipeline.required "conditions_bool" int
+        |> Json.Decode.Pipeline.required "interventions" string
+        |> Json.Decode.Pipeline.required "interventions_bool" int
         |> Json.Decode.Pipeline.required "phase_ids" string
         |> Json.Decode.Pipeline.required "study_type_ids" string
         |> Json.Decode.Pipeline.required "enrollment" int

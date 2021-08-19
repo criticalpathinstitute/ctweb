@@ -47,6 +47,8 @@ type alias Model =
     , querySponsorsBool : Bool
     , queryText : Maybe String
     , queryTextBool : Bool
+    , queryInterventions : Maybe String
+    , queryInterventionsBool : Bool
     , recordLimit : Int
     , searchName : Maybe String
     , searchResults : WebData SearchResults
@@ -121,7 +123,9 @@ type Msg
     | SearchResponse (WebData SearchResults)
     | SetConditions String
     | SetEnrollment String
+    | SetInterventions String
     | SetQueryConditionsBool Bool
+    | SetQueryInterventionsBool Bool
     | SetQuerySponsorsBool Bool
     | SetQueryText String
     | SetQueryTextBool Bool
@@ -154,6 +158,8 @@ initialModel session =
     , querySponsorsBool = False
     , queryText = Nothing
     , queryTextBool = False
+    , queryInterventions = Nothing
+    , queryInterventionsBool = False
     , recordLimit = defaultRecordLimit
     , searchName = Nothing
     , searchResults = RemoteData.NotAsked
@@ -188,6 +194,12 @@ init session params =
         querySponsorsBool =
             unwrap False .sponsorsBool params
 
+        queryInterventions =
+            Maybe.andThen .interventions params
+
+        queryInterventionsBool =
+            unwrap False .interventionsBool params
+
         queryEnrollment =
             Maybe.andThen (\p -> Just p.enrollment) params
 
@@ -209,6 +221,8 @@ init session params =
         , querySponsorsBool = querySponsorsBool
         , queryConditions = queryConditions
         , queryConditionsBool = queryConditionsBool
+        , queryInterventions = queryInterventions
+        , queryInterventionsBool = queryInterventionsBool
         , queryEnrollment = queryEnrollment
         , searchName = searchName
       }
@@ -402,6 +416,11 @@ update msg model =
             , Cmd.none
             )
 
+        SetInterventions text ->
+            ( { model | queryInterventions = strToMaybe (String.toLower text) }
+            , Cmd.none
+            )
+
         SetQueryConditionsBool val ->
             ( { model | queryConditionsBool = val }, Cmd.none )
 
@@ -414,6 +433,9 @@ update msg model =
             ( { model | querySponsors = strToMaybe (String.toLower text) }
             , Cmd.none
             )
+
+        SetQueryInterventionsBool val ->
+            ( { model | queryInterventionsBool = val }, Cmd.none )
 
         SetQuerySponsorsBool val ->
             ( { model | querySponsorsBool = val }, Cmd.none )
@@ -553,6 +575,8 @@ view model =
                 > 0
                 || String.length (Maybe.withDefault "" model.queryConditions)
                 > 0
+                || String.length (Maybe.withDefault "" model.queryInterventions)
+                > 0
                 || String.length (Maybe.withDefault "" model.querySponsors)
                 > 0
                 || Maybe.withDefault 0 model.queryEnrollment
@@ -613,6 +637,27 @@ view model =
                             [ Checkbox.id "chkConditionsBool"
                             , Checkbox.checked model.queryConditionsBool
                             , Checkbox.onCheck SetQueryConditionsBool
+                            ]
+                            "Boolean"
+                        ]
+                    ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ]
+                        [ text "Interventions" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetInterventions
+                                , value <|
+                                    Maybe.withDefault "" model.queryInterventions
+                                ]
+                            ]
+                        ]
+                    , Form.col [ Col.sm2 ]
+                        [ Checkbox.checkbox
+                            [ Checkbox.id "chkInterventionsBool"
+                            , Checkbox.checked model.queryInterventionsBool
+                            , Checkbox.onCheck SetQueryInterventionsBool
                             ]
                             "Boolean"
                         ]
@@ -946,6 +991,10 @@ doSearch model =
             Url.Builder.int "conditions_bool"
                 (ifElse 1 0 model.queryConditionsBool)
 
+        queryInterventionsBool =
+            Url.Builder.int "interventions_bool"
+                (ifElse 1 0 model.queryInterventionsBool)
+
         querySponsorsBool =
             Url.Builder.int "sponsors_bool"
                 (ifElse 1 0 model.querySponsorsBool)
@@ -973,6 +1022,9 @@ doSearch model =
                 , ( "sponsor_names"
                   , model.querySponsors
                   )
+                , ( "intervention_names"
+                  , model.queryInterventions
+                  )
                 ]
 
         params =
@@ -980,6 +1032,7 @@ doSearch model =
                 queryParams
                     ++ [ queryTextBool
                        , queryConditionsBool
+                       , queryInterventionsBool
                        , querySponsorsBool
                        , recordLimit
                        ]
@@ -1035,6 +1088,14 @@ saveSearch model =
                     Url.Builder.int "sponsors_bool"
                         (ifElse 1 0 model.querySponsorsBool)
 
+                interventions =
+                    Url.Builder.string "interventions"
+                        (Maybe.withDefault "" model.queryInterventions)
+
+                interventionsBool =
+                    Url.Builder.int "interventions_bool"
+                        (ifElse 1 0 model.queryInterventionsBool)
+
                 phaseIds =
                     List.map (\p -> String.fromInt p.phaseId)
                         model.querySelectedPhases
@@ -1064,6 +1125,8 @@ saveSearch model =
                         , conditionsBool
                         , sponsors
                         , sponsorsBool
+                        , interventions
+                        , interventionsBool
                         , phaseIds
                         , studyTypeIds
                         , enrollment
