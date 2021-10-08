@@ -472,7 +472,8 @@ def search(text: Optional[str] = '',
     if text:
         where.append({
             'tables': [],
-            'where': ['s.fulltext @@ {}'.format(tsquery(text, text_bool))]
+            'where':
+            ['s.fulltext @@ {}'.format(tsquery(text, text_bool, 'english'))]
         })
 
     if phase_ids:
@@ -578,6 +579,7 @@ def search(text: Optional[str] = '',
         limit {}
     """.format(', '.join(table_names), where, limit or 'ALL')
 
+    # print(count_sql)
     res = []
     count = 0
     try:
@@ -601,13 +603,12 @@ def search(text: Optional[str] = '',
 
 
 # --------------------------------------------------
-def tsquery(query: str, bool_search: int) -> str:
+def tsquery(query: str, bool_search: int, language: str = '') -> str:
     """ Make into query """
 
-    if bool_search:
-        query = make_bool(query)
-
-    return f"{'' if bool_search else 'plain'}to_tsquery('english', '{query}')"
+    return "{}to_tsquery({}'{}')".format(
+        '' if bool_search else 'plain', f"'{language}', " if language else '',
+        make_bool(query) if bool_search else query)
 
 
 # --------------------------------------------------
@@ -772,7 +773,7 @@ def conditions(name: str,
         order by 3 desc, 2
     """
 
-    # print(sql)
+    print(sql)
 
     res = []
     try:
