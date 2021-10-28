@@ -41,14 +41,16 @@ type alias Model =
     , queryConditions : Maybe String
     , queryConditionsBool : Bool
     , queryEnrollment : Maybe Int
+    , queryInterventions : Maybe String
+    , queryInterventionsBool : Bool
+    , queryLastUpdatePosted : Maybe String
     , querySelectedPhases : List Phase
     , querySelectedStudyTypes : List StudyType
     , querySponsors : Maybe String
     , querySponsorsBool : Bool
+    , queryStudyFirstPosted : Maybe String
     , queryText : Maybe String
     , queryTextBool : Bool
-    , queryInterventions : Maybe String
-    , queryInterventionsBool : Bool
     , recordLimit : Int
     , searchName : Maybe String
     , searchResults : WebData SearchResults
@@ -124,6 +126,8 @@ type Msg
     | SetConditions String
     | SetEnrollment String
     | SetInterventions String
+    | SetLastUpdatePosted String
+    | SetStudyFirstPosted String
     | SetQueryConditionsBool Bool
     | SetQueryInterventionsBool Bool
     | SetQuerySponsorsBool Bool
@@ -152,14 +156,16 @@ initialModel session =
     , queryConditions = Nothing
     , queryConditionsBool = False
     , queryEnrollment = Nothing
+    , queryInterventions = Nothing
+    , queryInterventionsBool = False
+    , queryLastUpdatePosted = Nothing
     , querySelectedPhases = []
     , querySelectedStudyTypes = []
     , querySponsors = Nothing
     , querySponsorsBool = False
+    , queryStudyFirstPosted = Nothing
     , queryText = Nothing
     , queryTextBool = False
-    , queryInterventions = Nothing
-    , queryInterventionsBool = False
     , recordLimit = defaultRecordLimit
     , searchName = Nothing
     , searchResults = RemoteData.NotAsked
@@ -424,6 +430,16 @@ update msg model =
             , Cmd.none
             )
 
+        SetLastUpdatePosted text ->
+            ( { model | queryLastUpdatePosted = strToMaybe text }
+            , Cmd.none
+            )
+
+        SetStudyFirstPosted text ->
+            ( { model | queryStudyFirstPosted = strToMaybe text }
+            , Cmd.none
+            )
+
         SetQueryConditionsBool val ->
             ( { model | queryConditionsBool = val }, Cmd.none )
 
@@ -573,21 +589,22 @@ view model =
         viewSelectedStudyTypes =
             List.map viewStudyType model.querySelectedStudyTypes
 
+        isNotEmpty val =
+            String.length (Maybe.withDefault "" val) > 0
+
         canSearch =
-            String.length (Maybe.withDefault "" model.queryText)
-                > 0
-                || String.length (Maybe.withDefault "" model.queryConditions)
-                > 0
-                || String.length (Maybe.withDefault "" model.queryInterventions)
-                > 0
-                || String.length (Maybe.withDefault "" model.querySponsors)
-                > 0
-                || Maybe.withDefault 0 model.queryEnrollment
-                > 0
-                || List.length model.querySelectedPhases
-                > 0
-                || List.length model.querySelectedStudyTypes
-                > 0
+            List.member
+                True
+                [ isNotEmpty model.queryText
+                , isNotEmpty model.queryConditions
+                , isNotEmpty model.queryInterventions
+                , isNotEmpty model.querySponsors
+                , isNotEmpty model.queryLastUpdatePosted
+                , isNotEmpty model.queryStudyFirstPosted
+                , Maybe.withDefault 0 model.queryEnrollment > 0
+                , List.length model.querySelectedPhases > 0
+                , List.length model.querySelectedStudyTypes > 0
+                ]
 
         enrollmentDisplay =
             let
@@ -652,7 +669,8 @@ view model =
                             [ Input.attrs
                                 [ onInput SetInterventions
                                 , value <|
-                                    Maybe.withDefault "" model.queryInterventions
+                                    Maybe.withDefault ""
+                                        model.queryInterventions
                                 ]
                             ]
                         ]
@@ -707,6 +725,36 @@ view model =
                             [ Input.attrs
                                 [ onInput SetEnrollment
                                 , value enrollmentDisplay
+                                ]
+                            ]
+                        ]
+                    ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Study First Posted" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetStudyFirstPosted
+                                , value
+                                    (Maybe.withDefault
+                                        ""
+                                        model.queryStudyFirstPosted
+                                    )
+                                ]
+                            ]
+                        ]
+                    ]
+                , Form.row []
+                    [ Form.colLabel [ Col.sm2 ] [ text "Last Update Posted" ]
+                    , Form.col [ Col.sm5 ]
+                        [ Input.text
+                            [ Input.attrs
+                                [ onInput SetLastUpdatePosted
+                                , value
+                                    (Maybe.withDefault
+                                        ""
+                                        model.queryLastUpdatePosted
+                                    )
                                 ]
                             ]
                         ]
@@ -866,21 +914,6 @@ view model =
         ]
 
 
-
---[ Grid.row [ Row.centerMd ]
---    [ Grid.col
---        [ Col.xs, Col.md8 ]
---        [ text summary ]
---    ]
---, Grid.row []
---    [ Grid.col [] [ searchForm ]
---    ]
---, Grid.row []
---    [ Grid.col [] [ results ]
---    ]
---]
-
-
 filteredConditions : List Condition -> Maybe String -> List Condition
 filteredConditions conditions conditionFilter =
     let
@@ -906,18 +939,6 @@ filteredConditions conditions conditionFilter =
 
         _ ->
             []
-
-
-
---getSummary : Cmd Msg
---getSummary =
---    Http.get
---        { url = apiServer ++ "/summary"
---        , expect =
---            Http.expectJson
---                (RemoteData.fromResult >> SummaryResponse)
---                decoderSummary
---        }
 
 
 getPhases : Cmd Msg
@@ -1027,6 +1048,12 @@ doSearch model =
                   )
                 , ( "intervention_names"
                   , model.queryInterventions
+                  )
+                , ( "last_update_posted"
+                  , model.queryLastUpdatePosted
+                  )
+                , ( "study_first_posted"
+                  , model.queryStudyFirstPosted
                   )
                 ]
 

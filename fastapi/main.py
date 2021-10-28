@@ -463,6 +463,8 @@ def search(text: Optional[str] = '',
            sponsor_ids: Optional[str] = '',
            study_type_ids: Optional[str] = '',
            phase_ids: Optional[str] = '',
+           last_update_posted: Optional[str] = '',
+           study_first_posted: Optional[str] = '',
            limit: Optional[int] = 0) -> List[StudySearchResult]:
     """ Search """
 
@@ -557,6 +559,9 @@ def search(text: Optional[str] = '',
                 's2p.sponsor_id in ({})'.format(sponsor_ids)
             ]
         })
+
+    if last_update_posted:
+        print(f'last_update_posted "{last_update_posted}"')
 
     if not where:
         return []
