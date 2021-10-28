@@ -203,6 +203,12 @@ init session params =
         querySponsorsBool =
             unwrap False .sponsorsBool params
 
+        queryLastUpdatePosted =
+            Maybe.andThen .lastUpdatePosted params
+
+        queryStudyFirstPosted =
+            Maybe.andThen .studyFirstPosted params
+
         queryInterventions =
             Maybe.andThen .interventions params
 
@@ -224,15 +230,17 @@ init session params =
     ( { model
         | initPhaseIds = initPhaseIds
         , initStudyTypeIds = initStudyTypeIds
-        , queryText = queryText
-        , queryTextBool = queryTextBool
-        , querySponsors = querySponsors
-        , querySponsorsBool = querySponsorsBool
         , queryConditions = queryConditions
         , queryConditionsBool = queryConditionsBool
+        , queryEnrollment = queryEnrollment
         , queryInterventions = queryInterventions
         , queryInterventionsBool = queryInterventionsBool
-        , queryEnrollment = queryEnrollment
+        , queryLastUpdatePosted = queryLastUpdatePosted
+        , querySponsors = querySponsors
+        , querySponsorsBool = querySponsorsBool
+        , queryStudyFirstPosted = queryStudyFirstPosted
+        , queryText = queryText
+        , queryTextBool = queryTextBool
         , searchName = searchName
       }
     , Cmd.batch [ getPhases, getStudyTypes ]

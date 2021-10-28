@@ -15,6 +15,8 @@ type alias SearchParams =
     , sponsorsBool : Bool
     , interventions : Maybe String
     , interventionsBool : Bool
+    , lastUpdatePosted : Maybe String
+    , studyFirstPosted : Maybe String
     , phaseIds : List Int
     , studyTypeIds : List Int
     , enrollment : Int

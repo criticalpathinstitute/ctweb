@@ -47,6 +47,8 @@ type alias SavedSearch =
     , phaseIds : String
     , studyTypeIds : String
     , enrollment : Int
+    , studyFirstPosted : String
+    , lastUpdatePosted : String
     }
 
 
@@ -222,6 +224,8 @@ tableConfig =
             , sponsorsBool = intToBool item.sponsorsBool
             , interventions = strToMaybe item.interventions
             , interventionsBool = intToBool item.interventionsBool
+            , studyFirstPosted = strToMaybe item.studyFirstPosted
+            , lastUpdatePosted = strToMaybe item.lastUpdatePosted
             , phaseIds = strToIntList item.phaseIds
             , studyTypeIds = strToIntList item.studyTypeIds
             , enrollment = item.enrollment
@@ -258,17 +262,19 @@ decoderSavedSearch =
     Json.Decode.succeed SavedSearch
         |> Json.Decode.Pipeline.required "saved_search_id" int
         |> Json.Decode.Pipeline.required "search_name" string
-        |> Json.Decode.Pipeline.required "full_text" string
-        |> Json.Decode.Pipeline.required "full_text_bool" int
-        |> Json.Decode.Pipeline.required "sponsors" string
-        |> Json.Decode.Pipeline.required "sponsors_bool" int
-        |> Json.Decode.Pipeline.required "conditions" string
-        |> Json.Decode.Pipeline.required "conditions_bool" int
-        |> Json.Decode.Pipeline.required "interventions" string
-        |> Json.Decode.Pipeline.required "interventions_bool" int
-        |> Json.Decode.Pipeline.required "phase_ids" string
-        |> Json.Decode.Pipeline.required "study_type_ids" string
-        |> Json.Decode.Pipeline.required "enrollment" int
+        |> Json.Decode.Pipeline.optional "full_text" string ""
+        |> Json.Decode.Pipeline.optional "full_text_bool" int 0
+        |> Json.Decode.Pipeline.optional "sponsors" string ""
+        |> Json.Decode.Pipeline.optional "sponsors_bool" int 0
+        |> Json.Decode.Pipeline.optional "conditions" string ""
+        |> Json.Decode.Pipeline.optional "conditions_bool" int 0
+        |> Json.Decode.Pipeline.optional "interventions" string ""
+        |> Json.Decode.Pipeline.optional "interventions_bool" int 0
+        |> Json.Decode.Pipeline.optional "phase_ids" string ""
+        |> Json.Decode.Pipeline.optional "study_type_ids" string ""
+        |> Json.Decode.Pipeline.optional "enrollment" int 0
+        |> Json.Decode.Pipeline.optional "study_first_posted" string ""
+        |> Json.Decode.Pipeline.optional "last_update_posted" string ""
 
 
 subscriptions : Model -> Sub Msg
