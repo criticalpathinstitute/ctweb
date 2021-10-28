@@ -10,6 +10,7 @@ import psycopg2
 import psycopg2.extras
 import re
 from configparser import ConfigParser
+from dateutil.parser import parse
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from functools import lru_cache
@@ -463,6 +464,8 @@ def search(text: Optional[str] = '',
            sponsor_ids: Optional[str] = '',
            study_type_ids: Optional[str] = '',
            phase_ids: Optional[str] = '',
+           study_first_posted: Optional[str] = '',
+           last_update_posted: Optional[str] = '',
            limit: Optional[int] = 0) -> List[StudySearchResult]:
     """ Search """
 
@@ -477,18 +480,18 @@ def search(text: Optional[str] = '',
         })
 
     if phase_ids:
-        ids = list(filter(str.isdigit, phase_ids.split(',')))
-        where.append({
-            'tables': [],
-            'where': ['s.phase_id in ({})'.format(','.join(ids))]
-        })
+        if ids := list(filter(str.isdigit, phase_ids.split(','))):
+            where.append({
+                'tables': [],
+                'where': ['s.phase_id in ({})'.format(','.join(ids))]
+            })
 
     if study_type_ids:
-        ids = list(filter(str.isdigit, study_type_ids.split(',')))
-        where.append({
-            'tables': [],
-            'where': ['s.study_type_id in ({})'.format(','.join(ids))]
-        })
+        if ids := list(filter(str.isdigit, study_type_ids.split(','))):
+            where.append({
+                'tables': [],
+                'where': ['s.study_type_id in ({})'.format(','.join(ids))]
+            })
 
     if match := re.match(r'(=|==|<|<=|>|>=)?\s*(\d+)', enrollment):
         op = match.group(1) or '>='
@@ -506,6 +509,20 @@ def search(text: Optional[str] = '',
             'tables': [],
             'where':
             ['s.last_known_status_id = {}'.format(last_known_status_id)]
+        })
+
+    if dt := parse_date(study_first_posted):
+        where.append({
+            'tables': [],
+            'where':
+            ["s.study_first_posted >= '{}'".format(dt)]
+        })
+
+    if dt := parse_date(last_update_posted):
+        where.append({
+            'tables': [],
+            'where':
+            ["s.last_update_posted >= '{}'".format(dt)]
         })
 
     if condition_names:
@@ -559,7 +576,7 @@ def search(text: Optional[str] = '',
         })
 
     if not where:
-        return []
+        return SearchResults(count=0, records=[])
 
     table_names = ['study s'] + list(
         chain.from_iterable(map(lambda x: x['tables'], where)))
@@ -579,7 +596,6 @@ def search(text: Optional[str] = '',
         limit {}
     """.format(', '.join(table_names), where, limit or 'ALL')
 
-    # print(count_sql)
     res = []
     count = 0
     try:
@@ -773,8 +789,6 @@ def conditions(name: str,
         order by 3 desc, 2
     """
 
-    print(sql)
-
     res = []
     try:
         cur = get_cur()
@@ -948,3 +962,14 @@ def phases() -> Dataload:
         cur.close()
 
     return Dataload(num_studies=num_studies, updated_on=updated_on)
+
+# --------------------------------------------------
+def parse_date(text: str) -> Optional[str]:
+    """ Parse date """
+
+    if text:
+        try:
+            dt = parse(text)
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            pass
